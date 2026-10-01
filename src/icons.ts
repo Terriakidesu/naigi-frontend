@@ -1,5 +1,10 @@
 import {
   Activity,
+  Check,
+  ExternalLink,
+  GripVertical,
+  Play,
+  Sparkles,
   AtSign,
   AudioLines,
   ArrowLeft,
@@ -72,9 +77,15 @@ import {
   ZoomIn,
   ZoomOut,
   createIcons,
+  createElement,
 } from "lucide";
 
 const iconSet = {
+  Check,
+  ExternalLink,
+  GripVertical,
+  Play,
+  Sparkles,
   Bold,
   Italic,
   Strikethrough,
@@ -154,9 +165,12 @@ export function renderIcons(root: Element | Document | DocumentFragment = docume
 }
 
 export function iconElement(name: string, className?: string) {
-  const element = document.createElement("i");
-  element.dataset.lucide = name;
-  element.setAttribute("aria-hidden", "true");
-  if (className) element.className = className;
-  return element;
+  const key = name.replace(/(^|-)(\w)/g, (_, _separator, letter: string) => letter.toUpperCase());
+  const node = iconSet[key as keyof typeof iconSet];
+  if (!node) throw new Error(`Unknown icon: ${name}`);
+  return createElement(node, {
+    class: `lucide lucide-${name}${className ? ` ${className}` : ""}`,
+    "aria-hidden": "true",
+    focusable: "false",
+  });
 }

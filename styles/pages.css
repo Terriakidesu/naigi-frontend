@@ -243,6 +243,9 @@
 .theme-preview-window[data-theme-borders="none"] { border-color: transparent; }
 .theme-preview-titlebar { display: flex; align-items: center; justify-content: space-between; min-height: 30px; padding: 0 0.6rem; color: var(--accent-ink); background: var(--accent); font-size: 0.62rem; }
 .theme-preview-window-action { font-size: 1rem; line-height: 1; }
+.theme-preview-window-action svg { display: block; }
+.theme-preview-rail svg { width: 12px; height: 12px; }
+.theme-preview-chat-header > strong { display: flex; align-items: center; gap: 0.2rem; }
 .theme-preview-body { display: grid; grid-template-columns: 32px 106px minmax(0, 1fr); height: 218px; min-width: 0; }
 .theme-preview-rail { display: flex; flex-direction: column; align-items: center; gap: 0.45rem; padding: 0.45rem 0.2rem; color: var(--workspace-rail-ink); background: var(--workspace-rail, var(--bg-deep)); }
 .theme-preview-rail span { display: grid; place-items: center; width: 22px; height: 22px; border-radius: var(--theme-control-radius, 7px); background: color-mix(in srgb, var(--workspace-rail-ink) 12%, transparent); font-size: 0.55rem; font-weight: 800; }
@@ -434,8 +437,8 @@
 .role-permission-section, .role-access-section { min-width: 0; border: 1px solid var(--line-soft); border-radius: 8px; background: var(--bg-elevated); }
 .role-permission-section > summary, .role-access-summary { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; min-height: 40px; padding: 0.55rem 0.75rem; color: var(--text); cursor: pointer; list-style: none; }
 .role-permission-section > summary::-webkit-details-marker, .role-access-summary::-webkit-details-marker { display: none; }
-.role-permission-section > summary::after, .role-access-summary::after { flex: 0 0 auto; color: var(--text-faint); content: "+"; font-size: 1rem; line-height: 1; }
-.role-permission-section[open] > summary::after, .role-access-section[open] > summary::after { content: "−"; }
+.role-permission-section > summary::after, .role-access-summary::after { flex: 0 0 auto; width: 1rem; height: 1rem; color: var(--text-faint); content: ""; background: linear-gradient(currentColor, currentColor) center / 10px 2px no-repeat, linear-gradient(currentColor, currentColor) center / 2px 10px no-repeat; }
+.role-permission-section[open] > summary::after, .role-access-section[open] > summary::after { background-size: 10px 2px, 0 0; }
 .role-permission-summary strong { font-size: 0.71rem; }
 .role-permission-summary .small { margin: 0 auto 0 0; font-size: 0.61rem; }
 .role-permission-section .role-permission-grid { padding: 0 0.5rem 0.5rem; }

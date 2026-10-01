@@ -142,7 +142,7 @@
 .member-actions-note { margin: 0.3rem 0; padding: 0.3rem 0.5rem; color: var(--text-faint); font-size: 0.65rem; line-height: 1.4; }
 .member-actions-popover hr { width: 100%; margin: 0.25rem 0; border: 0; border-top: 1px solid var(--line-soft); }
 .member-actions-popover .member-roles-submenu-trigger { display: flex; justify-content: space-between; align-items: center; }
-.member-roles-submenu-trigger::after { content: "›"; color: var(--text-muted); font-size: 1rem; }
+.member-roles-submenu-trigger::after { content: ""; width: 0.4rem; height: 0.4rem; border-top: 2px solid var(--text-muted); border-right: 2px solid var(--text-muted); transform: rotate(45deg); }
 .member-actions-popover { max-height: calc(100dvh - 16px); overflow-y: auto; }
 .member-profile-dialog { width: min(360px, calc(100vw - 2rem)); margin: auto; padding: 1.2rem; border: 1px solid var(--line-soft); border-radius: 10px; color: var(--text); background: var(--bg-elevated); }
 .member-profile-dialog::backdrop { background: #0007; }

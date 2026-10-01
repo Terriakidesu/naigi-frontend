@@ -411,7 +411,7 @@ function renderThemeCards(selectedId: string) {
     const check = document.createElement("span");
     check.className = "theme-preset-card-check";
     check.setAttribute("aria-hidden", "true");
-    check.textContent = "✓";
+    check.append(iconElement("check"));
     card.append(sample, copy, check);
     themePresetCards.append(card);
   }
@@ -436,16 +436,17 @@ function createThemePreviewMarkup(preview: HTMLElement) {
   title.className = "theme-preview-title";
   const windowAction = document.createElement("span");
   windowAction.className = "theme-preview-window-action";
-  windowAction.textContent = "×";
+  windowAction.append(iconElement("x"));
   topbar.append(title, windowAction);
 
   const body = document.createElement("div");
   body.className = "theme-preview-body";
   const rail = document.createElement("aside");
   rail.className = "theme-preview-rail";
-  for (const text of ["N", "✦", "＋"]) {
+  for (const name of [null, "sparkles", "plus"]) {
     const item = document.createElement("span");
-    item.textContent = text;
+    if (name) item.append(iconElement(name));
+    else item.textContent = "N";
     rail.append(item);
   }
   const sidebar = document.createElement("aside");
@@ -489,7 +490,7 @@ function createThemePreviewMarkup(preview: HTMLElement) {
   const chatHeader = document.createElement("header");
   chatHeader.className = "theme-preview-chat-header";
   const chatTitle = document.createElement("strong");
-  chatTitle.textContent = "# lobby";
+  chatTitle.append(iconElement("hash"), " lobby");
   const chatStatus = document.createElement("small");
   chatStatus.textContent = "2 members · encrypted";
   chatHeader.append(chatTitle, chatStatus);

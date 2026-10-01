@@ -5344,7 +5344,7 @@ function renderComposerAttachments() {
     remove.className = "icon-button";
     remove.title = "Remove attachment";
     remove.setAttribute("aria-label", `Remove ${attachment.file.name || "attachment"}`);
-    remove.textContent = "×";
+    remove.append(iconElement("x"));
     remove.disabled = attachment.status === "uploading";
     remove.addEventListener("click", () => removeComposerAttachment(attachment.id));
     actions.append(remove);
@@ -6371,7 +6371,7 @@ function appendEncryptedMedia(
             const playMark = document.createElement("span");
             playMark.className = "media-play-mark";
             playMark.setAttribute("aria-hidden", "true");
-            playMark.textContent = "▶";
+            playMark.append(iconElement("play"));
             card.append(preview, playMark);
           } else {
             (preview as HTMLImageElement).alt = concealedSpoiler ? "Blurred image spoiler" : filename || "Encrypted image";

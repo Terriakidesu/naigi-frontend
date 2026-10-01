@@ -1036,7 +1036,7 @@ function renderAuditLogs() {
     row.className = "settings-list-row audit-log-row";
     const icon = document.createElement("span");
     icon.className = "audit-log-icon";
-    icon.textContent = "•";
+    icon.append(iconElement("activity"));
     const copy = document.createElement("div");
     copy.className = "settings-row-copy";
     const action = document.createElement("strong");
@@ -1065,7 +1065,7 @@ function renderCustomEmojis() {
     row.dataset.emojiId = emoji.id;
     const preview = document.createElement("span");
     preview.className = "custom-emoji-preview";
-    preview.textContent = "✦";
+    preview.append(iconElement("smile"));
     const previewUrl = customEmojiPreviewUrls.get(emoji.id);
     if (previewUrl) {
       const image = document.createElement("img");
@@ -1284,7 +1284,7 @@ function renderChannels() {
     bindRoomDropTarget(row, group.id, channel.id);
     const handle = document.createElement("span");
     handle.className = "room-drag-handle";
-    handle.textContent = "⠿";
+    handle.append(iconElement("grip-vertical"));
     handle.title = "Drag to reorder or move to a group. You can also use the category and order fields.";
     handle.setAttribute("aria-hidden", "true");
     handle.draggable = metadataReady && hasAnyPermission("manage_channels", "reorder_channels", "edit_channels");
@@ -1515,7 +1515,7 @@ function renderRoles() {
       item.dataset.roleId = role.id;
       const grip = document.createElement("span");
       grip.className = "role-drag-grip";
-      grip.textContent = "⠿";
+      grip.append(iconElement("grip-vertical"));
       grip.draggable = canDragRole(role);
       grip.title = grip.draggable ? "Drag to reorder role" : "Role ordering is restricted by permissions and hierarchy";
       grip.setAttribute("aria-hidden", "true");
@@ -1596,7 +1596,7 @@ function renderRoles() {
       const menu = document.createElement("details");
       menu.className = "role-row-menu";
       const summary = document.createElement("summary");
-      summary.textContent = "•••";
+      summary.append(iconElement("more-horizontal"));
       summary.setAttribute("aria-label", `Actions for ${roleName(role)}`);
       const actions = document.createElement("div");
       const permissions = document.createElement("button");

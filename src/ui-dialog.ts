@@ -1,3 +1,5 @@
+import { iconElement } from "./icons";
+
 function createDialog(title: string, description: string) {
   const dialog = document.createElement("dialog");
   dialog.className = "app-dialog";
@@ -56,7 +58,7 @@ export function confirmExternalUrl(url: URL, mode: "link" | "media" = "link") {
     const mark = document.createElement("span");
     mark.className = "external-link-mark";
     mark.setAttribute("aria-hidden", "true");
-    mark.textContent = "↗";
+    mark.append(iconElement("external-link"));
     heading.prepend(mark);
 
     const destination = document.createElement("section");
