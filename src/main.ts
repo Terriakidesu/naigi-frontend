@@ -55,7 +55,7 @@ import { roomReferenceSlug, roomReferenceToken } from "./room-reference";
 import { isPlaintextAttachment, readTextPreview, textLanguage, textPreviewExcerpt } from "./text-file";
 import { confirmLocalUnlock, lockLocalSession, resolveLocalPassphrase } from "./unlock-vault";
 import { iconElement, renderIcons } from "./icons";
-import { askText, showOneTimeToken } from "./ui-dialog";
+import { askText, confirmVoiceDeviceSwitch, showOneTimeToken } from "./ui-dialog";
 import { platform } from "#platform";
 
 const api = new ApiClient();
@@ -1255,7 +1255,13 @@ function initializeVoiceCalls(userId: string) {
   });
   voiceRooms = new VoiceRoomController({
     currentUserId: userId,
-    requestToken: (channelId) => api.voiceRoomToken(channelId),
+    requestToken: (channelId, instanceId, replaceExisting) => api.voiceRoomToken(channelId, instanceId, replaceExisting),
+    releaseToken: (channelId, instanceId) => api.releaseVoiceRoomToken(channelId, instanceId),
+    confirmDeviceSwitch: confirmVoiceDeviceSwitch,
+    onDeviceSwitched: () => {
+      clearVoiceRoomResume();
+      setStatus("Voice moved to another device.");
+    },
     checkAccess: async (channelId) => {
       try {
         return (await api.voiceRoomAuthorized(channelId)).authorized;
@@ -1297,6 +1303,10 @@ async function joinVoiceRoom(channel: ServerChannel) {
     });
   } catch (error) {
     if (isTerminalVoiceRoomResumeError(error)) clearVoiceRoomResume();
+    if (error instanceof Error && error.message === "voice_room_switch_cancelled") {
+      voiceRoomPanelStatus.textContent = "Voice remains on your other device.";
+      return;
+    }
     voiceRoomPanelStatus.textContent = readableError(error);
     setStatus(readableError(error), true);
   }
@@ -1324,7 +1334,7 @@ function clearVoiceRoomResume() {
 function isTerminalVoiceRoomResumeError(error: unknown) {
   return (error instanceof ApiError && [401, 403, 404].includes(error.status))
     || (error instanceof Error && ["NotAllowedError", "PermissionDeniedError", "NotFoundError", "SecurityError"].includes(error.name))
-    || (error instanceof Error && ["voice_microphone_unavailable", "voice_microphone_publish_failed", "voice_secure_context_required"].includes(error.message));
+    || (error instanceof Error && ["voice_microphone_unavailable", "voice_microphone_publish_failed", "voice_secure_context_required", "voice_room_switch_cancelled"].includes(error.message));
 }
 
 function scheduleVoiceRoomResume(delay = voiceRoomResumeDelay(voiceRoomResumeAttempt)) {
@@ -1379,7 +1389,7 @@ async function resumeVoiceRoom() {
     if (voiceRoomResume === intent) {
       if (isTerminalVoiceRoomResumeError(error)) {
         clearVoiceRoomResume();
-        setStatus(`Voice room could not be restored: ${readableError(error)}`, true);
+        if (!(error instanceof Error && error.message === "voice_room_switch_cancelled")) setStatus(`Voice room could not be restored: ${readableError(error)}`, true);
       } else voiceRoomResumeAttempt += 1;
     }
   } finally {

@@ -1047,12 +1047,16 @@ export class ApiClient {
     return this.post<{ authorized: boolean }>("/v1/voice/check", { conversationId, callId });
   }
 
-  voiceRoomToken(channelId: string) {
-    return this.post<{ url: string; token: string; canStart: boolean }>("/v1/voice/room-token", { channelId });
+  voiceRoomToken(channelId: string, instanceId: string, replaceExisting = false) {
+    return this.post<{ url: string; token: string; canStart: boolean }>("/v1/voice/room-token", { channelId, instanceId, replaceExisting });
   }
 
   voiceRoomAuthorized(channelId: string) {
     return this.post<{ authorized: boolean }>("/v1/voice/room-check", { channelId });
+  }
+
+  releaseVoiceRoomToken(channelId: string, instanceId: string) {
+    return this.post<{ released: boolean }>("/v1/voice/room-release", { channelId, instanceId });
   }
 
   servers() {

@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## 0.1.2 — 2026-10-01
+
+### Fixed
+
+- Joining a voice room already active on another device now asks before transferring voice to this device. Cancelling leaves the existing connection untouched, and the replaced device stops automatic rejoining.
+- Delayed roster departures from a replaced device no longer hide the new connection.
+
 ## 0.1.1 — 2026-10-01
 
 ### Fixed

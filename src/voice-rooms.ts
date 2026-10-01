@@ -3,6 +3,7 @@ import { parseVoiceRoomSignal, type VoiceRoomSignalBody } from "./voice-room-pro
 import { assertVoiceSecureContext, waitForLocalVoiceEncryption } from "./voice-e2ee";
 import { VoiceAudioProcessor, setProcessedMicrophone } from "./voice-audio-processor";
 import { defaultVoiceAudioPreferences, voicePlaybackSettings, type VoiceAudioPreferences } from "./voice-audio-preferences";
+import { voiceRoomTicketRequester } from "./voice-room-device-switch";
 
 export type VoiceRoomView = {
   status: "idle" | "joining" | "connecting" | "connected" | "reconnecting";
@@ -25,6 +26,7 @@ type RoomTicket = { url: string; token: string; canStart: boolean };
 type RoomKey = { sessionId: string; mediaKey: string };
 
 type ActiveRoom = {
+  ticketInstanceId: string;
   conversationId: string;
   channelId: string;
   roomName: string;
@@ -56,11 +58,14 @@ type PendingKeyRequest = {
   timer?: number;
 };
 
-type KnownParticipant = { identity: string; userId: string; expiresAt: number };
+type KnownParticipant = { identity: string; userId: string; senderInstanceId: string; expiresAt: number };
 
 type VoiceRoomOptions = {
   currentUserId: string;
-  requestToken: (channelId: string) => Promise<RoomTicket>;
+  requestToken: (channelId: string, instanceId: string, replaceExisting: boolean) => Promise<RoomTicket>;
+  releaseToken: (channelId: string, instanceId: string) => Promise<unknown>;
+  confirmDeviceSwitch: () => Promise<boolean>;
+  onDeviceSwitched?: () => void;
   checkAccess: (channelId: string) => Promise<boolean>;
   encryptSignal: (conversationId: string, value: VoiceRoomSignalBody) => Promise<string>;
   decryptSignal: (conversationId: string, ciphertext: string) => Promise<Record<string, unknown>>;
@@ -181,6 +186,7 @@ export class VoiceRoomController {
     assertVoiceSecureContext();
     if (this.active) throw new Error("voice_room_already_active");
     const active: ActiveRoom = {
+      ticketInstanceId: crypto.randomUUID(),
       conversationId: channel.conversationId,
       channelId: channel.id,
       roomName: channel.name,
@@ -198,6 +204,14 @@ export class VoiceRoomController {
     this.emitState();
 
     try {
+      const requestTicket = voiceRoomTicketRequester(
+        (replaceExisting) => this.options.requestToken(active.channelId, active.ticketInstanceId, replaceExisting),
+        this.options.confirmDeviceSwitch,
+        () => this.isActive(active),
+      );
+      // Confirm a transfer before requesting microphone permission or joining.
+      const initialTicket = await requestTicket();
+      if (!this.isActive(active)) return;
       if (!navigator.mediaDevices?.getUserMedia) throw new Error("voice_microphone_unavailable");
       const permissionStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       for (const track of permissionStream.getTracks()) track.stop();
@@ -211,11 +225,11 @@ export class VoiceRoomController {
         if (key) {
           active.sessionId = key.sessionId;
           active.mediaKey = key.mediaKey;
-          await this.connect(active, await this.options.requestToken(active.channelId));
+          await this.connect(active, attempt === 0 ? initialTicket : await requestTicket());
           return;
         }
 
-        const ticket = await this.options.requestToken(active.channelId);
+        const ticket = attempt === 0 ? initialTicket : await requestTicket();
         if (!this.isActive(active)) return;
         if (ticket.canStart) {
           active.sessionId = crypto.randomUUID();
@@ -228,7 +242,7 @@ export class VoiceRoomController {
       }
       throw new Error("voice_room_key_unavailable");
     } catch (error) {
-      await this.finish();
+      if (this.isActive(active)) await this.finish();
       throw error;
     }
   }
@@ -249,7 +263,7 @@ export class VoiceRoomController {
       const participantIdentity = signal.participantIdentity!;
       const participants = this.knownParticipants.get(channelId) ?? new Map<string, KnownParticipant>();
       const previous = participants.get(participantIdentity);
-      participants.set(participantIdentity, { identity: participantIdentity, userId: senderUserId, expiresAt: signal.expiresAt });
+      participants.set(participantIdentity, { identity: participantIdentity, userId: senderUserId, senderInstanceId: signal.senderInstanceId, expiresAt: signal.expiresAt });
       this.knownParticipants.set(channelId, participants);
       this.ensureRosterExpiryTimer();
       const activeHere = active?.conversationId === conversationId && active.channelId === channelId;
@@ -264,6 +278,8 @@ export class VoiceRoomController {
       const participantIdentity = signal.participantIdentity!;
       const participants = this.knownParticipants.get(channelId);
       const previous = participants?.get(participantIdentity);
+      // A delayed departure from the replaced device must not erase its successor.
+      if (previous && previous.senderInstanceId !== signal.senderInstanceId) return;
       const activeHere = active?.conversationId === conversationId && active.channelId === channelId;
       if (previous?.userId === senderUserId) {
         participants?.delete(participantIdentity);
@@ -495,8 +511,13 @@ export class VoiceRoomController {
     });
     room.on(RoomEvent.Disconnected, (reason) => {
       if (!this.isActive(active) || active.cleaningUp) return;
-      if (reason === DisconnectReason.PARTICIPANT_REMOVED || reason === DisconnectReason.ROOM_DELETED
-        || reason === DisconnectReason.DUPLICATE_IDENTITY) this.options.onAccessRevoked?.();
+      if (reason === DisconnectReason.DUPLICATE_IDENTITY) {
+        this.options.onDeviceSwitched?.();
+        this.options.onAccessRevoked?.();
+        void this.finish(false);
+        return;
+      }
+      if (reason === DisconnectReason.PARTICIPANT_REMOVED || reason === DisconnectReason.ROOM_DELETED) this.options.onAccessRevoked?.();
       void this.finish();
     });
 
@@ -505,6 +526,7 @@ export class VoiceRoomController {
     await room.setE2EEEnabled(true);
     await room.connect(ticket.url, ticket.token);
     if (!this.isActive(active)) return;
+    void this.options.releaseToken(active.channelId, active.ticketInstanceId).catch(() => undefined);
     await waitForLocalVoiceEncryption(room);
     if (!this.isActive(active)) return;
     await this.announceParticipant(active);
@@ -601,11 +623,11 @@ export class VoiceRoomController {
     return this.active === active;
   }
 
-  private async finish() {
+  private async finish(announceDeparture = true) {
     const active = this.active;
     if (!active) return;
     const participantIdentity = active.room?.localParticipant.identity;
-    if (participantIdentity) {
+    if (participantIdentity && announceDeparture) {
       void this.sendSignal(active, "participant-left", {
         participantIdentity,
         expiresAt: Date.now() + 30_000,
@@ -613,6 +635,7 @@ export class VoiceRoomController {
     }
     this.active = undefined;
     active.cleaningUp = true;
+    void this.options.releaseToken(active.channelId, active.ticketInstanceId).catch(() => undefined);
     this.resolvePendingKey(undefined);
     window.clearInterval(active.accessTimer);
     window.clearInterval(active.presenceTimer);

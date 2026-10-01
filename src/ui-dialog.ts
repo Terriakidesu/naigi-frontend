@@ -16,6 +16,35 @@ function createDialog(title: string, description: string) {
 
 let externalDialogId = 0;
 
+export function confirmVoiceDeviceSwitch() {
+  return new Promise<boolean>((resolve) => {
+    const dialog = createDialog("Switch voice to this device?", "You’re already connected to this voice room on another device. Switching will disconnect that device and connect you here.");
+    const heading = dialog.querySelector("h2")!;
+    const hint = dialog.querySelector("p")!;
+    heading.id = `voice-device-switch-title-${++externalDialogId}`;
+    hint.id = `${heading.id}-description`;
+    dialog.setAttribute("aria-labelledby", heading.id);
+    dialog.setAttribute("aria-describedby", hint.id);
+    const actions = document.createElement("div");
+    actions.className = "app-dialog-actions";
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "secondary";
+    cancel.textContent = "Stay on other device";
+    const confirm = document.createElement("button");
+    confirm.type = "button";
+    confirm.textContent = "Switch to this device";
+    let approved = false;
+    cancel.addEventListener("click", () => dialog.close());
+    confirm.addEventListener("click", () => { approved = true; dialog.close(); });
+    dialog.addEventListener("close", () => resolve(approved), { once: true });
+    actions.append(cancel, confirm);
+    dialog.append(actions);
+    dialog.showModal();
+    cancel.focus();
+  });
+}
+
 export function promptUnsavedChanges() {
   return new Promise<"save" | "discard" | "stay">((resolve) => {
     const dialog = createDialog("Unsaved changes", "Save your changes before leaving, discard them, or stay here to keep editing.");
