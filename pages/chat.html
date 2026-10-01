@@ -172,6 +172,35 @@
                <button id="send-button" class="send-button" type="submit" title="Send encrypted message" aria-label="Send encrypted message"><i data-lucide="send"></i></button>
               </div>
              </form>
+            <div id="mobile-sheet" class="mobile-sheet" hidden>
+              <div class="mobile-sheet-scrim" data-mobile-sheet-close></div>
+              <section class="mobile-sheet-panel" role="dialog" aria-modal="false" aria-labelledby="mobile-sheet-title">
+                <div class="mobile-sheet-grip" aria-hidden="true"></div>
+                <div class="mobile-sheet-head">
+                  <h2 id="mobile-sheet-title" class="mobile-sheet-title">Add to message</h2>
+                  <div id="mobile-sheet-tabs" class="mobile-sheet-tabs" role="tablist" aria-label="Composer panel">
+                    <button id="mobile-sheet-tab-media" class="mobile-sheet-tab" type="button" role="tab" aria-selected="true" aria-controls="mobile-sheet-body">Media</button>
+                    <button id="mobile-sheet-tab-emoji" class="mobile-sheet-tab" type="button" role="tab" aria-selected="false" aria-controls="mobile-sheet-body" data-mobile-sheet-mode="emoji">Emoji</button>
+                    <button id="mobile-sheet-tab-gif" class="mobile-sheet-tab" type="button" role="tab" aria-selected="false" aria-controls="mobile-sheet-body" data-mobile-sheet-mode="gif">GIFs</button>
+                  </div>
+                  <button id="mobile-sheet-close" class="icon-button mobile-sheet-close" type="button" title="Close panel" aria-label="Close panel"><i data-lucide="x"></i></button>
+                </div>
+                <div id="mobile-sheet-body" class="mobile-sheet-body" data-mode="media">
+                  <div class="mobile-sheet-sources">
+                    <button id="mobile-sheet-photos" class="mobile-sheet-source" type="button">
+                      <i data-lucide="image" aria-hidden="true"></i>
+                      <span>Photos</span>
+                      <small>Images and video</small>
+                    </button>
+                    <button id="mobile-sheet-files" class="mobile-sheet-source" type="button">
+                      <i data-lucide="paperclip" aria-hidden="true"></i>
+                      <span>Files</span>
+                      <small>Any file type</small>
+                    </button>
+                  </div>
+                </div>
+              </section>
+            </div>
              <div id="file-drop-overlay" class="file-drop-overlay" hidden aria-live="polite">
                <div class="file-drop-message"><i data-lucide="upload"></i><strong>Drop files to attach</strong><span>Files are encrypted before upload.</span></div>
              </div>

@@ -1,6 +1,6 @@
 {
   "name": "naigi-frontend",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Shared Naigi web and desktop user interface",
@@ -10,7 +10,8 @@
     "check": "tsc --noEmit",
     "test": "vitest run",
     "build:web": "node scripts/build.mjs web",
-    "build:desktop": "node scripts/build.mjs desktop"
+    "build:desktop": "node scripts/build.mjs desktop",
+    "build:mobile": "node scripts/build.mjs mobile"
   },
   "dependencies": {
     "@matrix-org/matrix-sdk-crypto-wasm": "^18.9.0",

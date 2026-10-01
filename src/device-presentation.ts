@@ -1,4 +1,4 @@
-export type DeviceClient = "web" | "desktop";
+export type DeviceClient = "web" | "desktop" | "mobile";
 
 export function devicePresentation(name: string | null | undefined, current: boolean, client: DeviceClient) {
   const legacy = !name || name === "web";

@@ -19,6 +19,26 @@ test("recovery details closes before local-data and About is a navigable view", 
   expect(document.querySelector<HTMLInputElement>("#recovery-local-passphrase")!.required).toBe(true);
 });
 
+test("the mobile composer sheet follows the composer and offers photos, files, emoji, and GIFs", () => {
+  document.documentElement.innerHTML = readFileSync("pages/chat.html", "utf8");
+  const composer = document.getElementById("composer")!;
+  const sheet = document.getElementById("mobile-sheet")!;
+  expect(sheet.hidden).toBe(true);
+  expect(composer.nextElementSibling).toBe(sheet);
+  expect(sheet.querySelector("#mobile-sheet-photos")!.textContent).toContain("Photos");
+  expect(sheet.querySelector("#mobile-sheet-files")!.textContent).toContain("Files");
+  for (const tab of ["media", "emoji", "gif"]) {
+    const button = sheet.querySelector(`[data-mobile-sheet-mode="${tab}"], #mobile-sheet-tab-${tab}`)!;
+    expect(button.getAttribute("role")).toBe("tab");
+  }
+  expect(sheet.querySelector("#mobile-sheet-tab-media")!.getAttribute("aria-selected")).toBe("true");
+  // The sheet borrows existing nodes, so the composer keeps exactly one of each.
+  for (const id of ["emoji-picker", "gif-picker", "attachment-preview"]) {
+    expect(document.querySelectorAll(`#${id}`)).toHaveLength(1);
+  }
+  expect(document.querySelectorAll("#mobile-sheet")).toHaveLength(1);
+});
+
 test("conversation search belongs to right-hand actions and retains accessible controls", () => {
   document.documentElement.innerHTML = readFileSync("pages/chat.html", "utf8");
   expect(document.querySelector(".chat-actions #message-search-container")).not.toBeNull();

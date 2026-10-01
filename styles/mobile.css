@@ -1,0 +1,149 @@
+/*
+ * Mobile shell: a phone-native layout rather than a scaled-down desktop one.
+ *
+ * Differences from the desktop UI:
+ * - one full-screen column; the conversation drawer is pushed on demand
+ * - a bottom tab bar for primary destinations, inside thumb reach
+ * - 44px minimum touch targets and no hover-only affordances
+ * - safe-area insets for notches, status bars, and the home indicator
+ */
+
+.mobile-sheet { position: relative; z-index: 6; display: flex; flex: 0 1 auto; min-height: 0; padding-bottom: calc(0.5rem + env(safe-area-inset-bottom)); overflow: hidden; }
+.mobile-sheet[hidden] { display: none; }
+.mobile-sheet-scrim { position: fixed; z-index: 5; inset: 0; background: rgba(8, 9, 11, 0.42); animation: mobile-sheet-fade-in 140ms ease-out; }
+.mobile-sheet-panel { display: grid; grid-template-rows: auto auto minmax(0, 1fr); width: 100%; min-height: 0; max-height: min(26rem, 46vh); overflow: hidden; margin: 0 0.5rem; border: 1px solid var(--line-soft); border-radius: 18px; background: var(--bg-elevated); box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45); animation: mobile-sheet-rise 160ms ease-out; }
+.mobile-sheet-grip { width: 38px; height: 4px; margin: 0.5rem auto 0.15rem; border-radius: 999px; background: var(--line-soft); }
+.mobile-sheet-head { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0.4rem 0.6rem; padding: 0.4rem 0.75rem 0.55rem; }
+.mobile-sheet-title { grid-column: 1; margin: 0; color: var(--text); font-size: 0.82rem; font-weight: 700; }
+.mobile-sheet-close { grid-row: 1 / span 2; grid-column: 2; width: 44px; height: 44px; }
+.mobile-sheet-tabs { display: flex; grid-column: 1; gap: 0.3rem; }
+.mobile-sheet-tabs[hidden] { display: none; }
+.mobile-sheet-tab { flex: 0 0 auto; min-height: 44px; padding: 0.35rem 0.85rem; border: 1px solid transparent; border-radius: 999px; color: var(--text-muted); background: var(--bg-input); font-size: 0.8rem; }
+.mobile-sheet-tab[hidden] { display: none; }
+.mobile-sheet-tab[aria-selected="true"] { border-color: color-mix(in srgb, var(--accent) 40%, transparent); color: var(--accent-text); background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.mobile-sheet-body { display: grid; grid-template-rows: minmax(0, 1fr) auto; min-height: min(38vh, 20rem); padding: 0 0.6rem 0.4rem; overflow: hidden; }
+.mobile-sheet-body > * { min-height: 0; }
+.mobile-sheet-body .mobile-sheet-sources { grid-row: 1; align-self: end; padding-bottom: 0.5rem; }
+
+/* A single rounded composer pill, like other mobile chat apps. */
+.chat-layout .composer { margin: 0 0.6rem calc(0.5rem + env(safe-area-inset-bottom)); }
+.chat-layout .composer-box { gap: 0.2rem; min-height: 48px; padding: 0.35rem 0.4rem; border: 0; border-radius: 24px; background: color-mix(in srgb, var(--bg-input) 92%, transparent); }
+.chat-layout .file-button { width: 44px; height: 44px; flex: 0 0 auto; }
+.chat-layout .gif-toggle { min-width: 44px; padding-inline: 0.5rem; }
+.chat-layout .mobile-sheet-dismiss { width: 44px; height: 44px; flex: 0 0 auto; }
+.chat-layout .composer-box:focus-within { box-shadow: none; }
+.chat-layout #message-input { min-height: 26px; padding: 0.45rem 0.2rem; }
+
+.mobile-sheet-sources { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.3rem; padding: 0.3rem; border-radius: 20px; background: color-mix(in srgb, var(--bg-deep) 55%, transparent); backdrop-filter: blur(10px); }
+.mobile-sheet-source { display: grid; gap: 0.2rem; place-items: center; align-content: center; min-height: 62px; padding: 0.4rem 0.3rem; border: 0; border-radius: 14px; color: var(--text-muted); background: none; }
+.mobile-sheet-source:active { background: var(--bg-active); }
+.mobile-sheet-source svg { width: 24px; height: 24px; }
+.mobile-sheet-source span { font-size: 0.72rem; font-weight: 600; }
+.mobile-sheet-source small { display: none; }
+
+/* The attachment list becomes a thumbnail grid instead of a row of cards. */
+.mobile-sheet-body[data-mode="media"] .attachment-preview { display: contents; }
+.mobile-sheet-body[data-mode="media"] .attachment-preview[hidden] { display: none; }
+.mobile-sheet-body[data-mode="media"] .attachment-preview:not([hidden])::before { content: "Ready to send"; grid-column: 1 / -1; padding: 0.4rem 0.1rem 0.2rem; color: var(--text-faint); font-size: 0.68rem; }
+.mobile-sheet-body[data-mode="media"] .attachment-preview-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.3rem; align-content: start; max-height: 100%; padding: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.mobile-sheet-body[data-mode="media"] .attachment-item { position: relative; display: block; overflow: hidden; border: 1px solid var(--line-soft); border-radius: 12px; background: var(--bg-input); }
+.mobile-sheet-body[data-mode="media"] .attachment-item-copy { display: none; }
+.mobile-sheet-body[data-mode="media"] .attachment-item-visual { width: 100%; aspect-ratio: 1; border-radius: 0; }
+.mobile-sheet-body[data-mode="media"] .attachment-item-visual .attachment-item-thumb { width: 100%; height: 100%; object-fit: cover; transform: none; filter: none; }
+.mobile-sheet-body[data-mode="media"] .attachment-item-actions { position: absolute; inset: auto 0.25rem 0.25rem auto; gap: 0.2rem; padding: 0.2rem; border-radius: 999px; background: rgba(8, 9, 11, 0.62); backdrop-filter: blur(6px); }
+.mobile-sheet-body[data-mode="media"] .attachment-item-actions .attachment-spoiler-toggle { padding: 0.1rem 0.2rem; font-size: 0.5rem; }
+.mobile-sheet-body[data-mode="media"] .attachment-item-actions .icon-button { width: 32px; height: 32px; }
+.mobile-sheet-body[data-mode="media"] .attachment-item-progress { position: absolute; inset: auto 0 0; width: 100%; height: 3px; }
+.mobile-sheet-body[data-mode="media"] .attachment-item-status { display: none; }
+.mobile-sheet-body[data-mode="media"] .attachment-preview-footer { padding-top: 0.45rem; }
+.mobile-sheet-body[data-mode="media"] .attachment-preview-footer progress { flex: 1 1 auto; width: auto; }
+
+/* Emoji and GIF panels fill the sheet. */
+.mobile-sheet-body .emoji-picker,
+.mobile-sheet-body .gif-picker { position: static; width: 100%; max-width: none; max-height: none; transform: none; box-shadow: none; }
+.mobile-sheet-body .emoji-picker[hidden],
+.mobile-sheet-body .gif-picker[hidden] { display: none; }
+.mobile-sheet-body .emoji-picker-toolbar { position: sticky; top: 0; z-index: 1; padding-top: 0.3rem; background: var(--bg-elevated); }
+.mobile-sheet-body .emoji-picker-search,
+.mobile-sheet-body .gif-picker-search { min-height: 48px; border-radius: 14px; font-size: 0.92rem; }
+.mobile-sheet-body .emoji-picker-grid { max-height: 100%; overflow-y: auto; overscroll-behavior: contain; color: var(--text); background: none; }
+.mobile-sheet-body .emoji-picker-item { color: var(--text); background: none; }
+.mobile-sheet-body .emoji-picker-category button { min-width: 44px; min-height: 44px; }
+.mobile-sheet-body .emoji-picker-item { min-width: 44px; min-height: 44px; }
+.mobile-sheet-body .gif-picker-results { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem; max-height: 100%; overflow-y: auto; overscroll-behavior: contain; }
+.mobile-sheet-body .gif-picker-close { display: none; }
+.mobile-sheet-body .gif-picker-toolbar select { min-height: 48px; }
+.mobile-sheet-body .emoji-picker,
+.mobile-sheet-body .gif-picker { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; color: var(--text); background: none; }
+
+/* A phone shows one thing at a time: the drawer is a full-screen room list. */
+.chat-layout .sidebar { width: 100%; max-width: 100%; padding-bottom: 0; }
+.chat-layout .chat-header { padding-top: calc(0.5rem + env(safe-area-inset-top)); min-height: 56px; }
+.chat-layout .chat-header .icon-button,
+.chat-layout .composer .icon-button,
+.chat-layout .composer .composer-icon-button { width: 44px; height: 44px; }
+.chat-layout .mobile-sidebar-close { width: 44px; height: 44px; }
+.chat-layout .messages { padding-bottom: 0.9rem; }
+.chat-layout .composer { margin-bottom: calc(0.5rem + env(safe-area-inset-bottom)); }
+/*
+ * The composer grows with typed text only. A long placeholder in a narrow field
+ * must not inflate the box, so the field is capped and scrolls instead.
+ */
+.chat-layout .composer-box { max-height: 42vh; }
+.chat-layout #message-input { max-height: 34vh; overflow-y: auto; }
+.chat-layout .settings-nav-item,
+.chat-layout .sidebar-row { min-height: 44px; }
+
+/*
+ * A phone header carries no redundant chrome. Navigation is the drawer, search
+ * stays in the header where it belongs, notifications are left to push delivery,
+ * and locking lives in settings.
+ */
+.chat-layout #notification-toggle,
+.chat-layout #lock-button { display: none; }
+.chat-layout .chat-header { padding-inline: 0.4rem; }
+.chat-layout .channel-heading { flex: 1 1 auto; min-width: 0; }
+.chat-layout .channel-copy { min-width: 0; }
+.chat-layout .channel-copy h2,
+.chat-layout .channel-subtitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-layout .chat-actions { gap: 0.15rem; }
+
+/* Drawer layout: server identity, then spaces and rooms, then the account bar. */
+.chat-layout .sidebar { display: flex; flex-direction: column; }
+.chat-layout .sidebar-heading { position: sticky; top: 0; z-index: 2; padding: calc(0.6rem + env(safe-area-inset-top)) 0.85rem 0.6rem; background: color-mix(in srgb, var(--bg-sidebar) 96%, transparent); backdrop-filter: blur(12px); }
+.chat-layout .workspace-name { font-size: 1.02rem; }
+.chat-layout .mobile-server-switcher { margin: 0 0.85rem 0.5rem; }
+.chat-layout .mobile-server-switcher select { min-height: 48px; border-radius: 12px; font-size: 0.92rem; }
+.chat-layout .mobile-workspace-actions { gap: 0.5rem; margin: 0 0.85rem 0.6rem; }
+.chat-layout .mobile-workspace-actions button { min-height: 44px; }
+.chat-layout .sidebar-search { margin: 0 0.85rem 0.6rem; }
+.chat-layout .sidebar-search kbd { display: none; }
+.chat-layout .channel-list,
+.chat-layout .conversation-list { flex: 1 1 auto; min-height: 0; padding: 0 0.6rem 0.6rem; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.chat-layout .channel-row,
+.chat-layout .conversation-row,
+.chat-layout .space-row { min-height: 48px; }
+.chat-layout .sidebar-account { flex: 0 0 auto; margin-top: auto; border-top: 1px solid var(--line); background: color-mix(in srgb, var(--bg-deep) 60%, transparent); }
+.chat-layout .sidebar-user { min-height: 56px; padding: 0.4rem 0.85rem calc(0.4rem + env(safe-area-inset-bottom)); }
+.chat-layout .self-profile-button { min-height: 48px; }
+
+
+/* Touch devices have no hover, so hover-only affordances must not gate actions. */
+@media (hover: none) {
+  .chat-layout .attachment-preview-list .attachment-item:hover,
+  .chat-layout .message-actions:hover { opacity: 1; }
+  .chat-layout .media-attachment-card .media-card-actions { opacity: 1; }
+}
+
+/* The drawer is an overlay on phones, not a column beside the conversation. */
+.chat-layout .sidebar { position: absolute; z-index: 10; inset: 0; width: 100%; transform: translateX(-100%); box-shadow: none; transition: transform 180ms ease; }
+.chat-layout.mobile-sidebar-open .sidebar { transform: translateX(0); }
+.chat-layout .mobile-sidebar-backdrop { position: absolute; z-index: 9; inset: 0; }
+
+@keyframes mobile-sheet-rise { from { transform: translateY(14px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes mobile-sheet-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.chat-layout .messages { -webkit-overflow-scrolling: touch; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-sheet-panel, .mobile-sheet-scrim { animation: none; }
+}

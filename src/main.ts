@@ -137,6 +137,7 @@ const optimisticDecryptedMessages = new Map<string, DecryptedMessage>();
 const decryptedMessageCache = new Map<string, DecryptedMessage>();
 let conversationSearchQuery = "";
 let messageSearchQuery = "";
+let mobileSheet: import("./mobile-sheets").MobileSheet | undefined;
 const drafts = new Map<string, string>();
 let replyTarget: ReplyReference | undefined;
 let unreadCount = 0;
@@ -393,6 +394,7 @@ const composer = byId<HTMLFormElement>("composer");
 const messageInputRendered = byId<HTMLElement>("message-input-rendered");
 const messageInput = byId<HTMLTextAreaElement>("message-input");
 const photoInput = byId<HTMLInputElement>("photo-input");
+const fileButton = photoInput.closest<HTMLElement>(".file-button")!;
 const sendButton = byId<HTMLButtonElement>("send-button");
 const attachmentPreview = byId<HTMLElement>("attachment-preview");
 const attachmentPreviewList = byId<HTMLElement>("attachment-preview-list");
@@ -7272,6 +7274,7 @@ composer.addEventListener("submit", async (event) => {
   hideMacroSuggestions();
   closeEmojiPicker();
   closeGifPicker();
+  mobileSheet?.hide();
   const uploadController = attachmentsToSend.length > 0 ? new AbortController() : undefined;
   uploadAbortController = uploadController;
   let textSent = false;
@@ -7497,6 +7500,94 @@ messageInput.addEventListener("paste", (event) => {
 
 photoInput.addEventListener("change", () => addComposerFiles([...photoInput.files ?? []]));
 
+/**
+ * On phones the attachment and emoji/GIF controls move into a sheet under the
+ * composer, so the file chooser is reached through Photos and Files buttons and
+ * the popovers have room to breathe. Desktop and web keep the inline controls.
+ */
+function setupMobileComposerSheets() {
+  if (platform.kind !== "mobile") return;
+  const sheet = byId<HTMLElement>("mobile-sheet");
+  const body = byId<HTMLElement>("mobile-sheet-body");
+  const scrim = sheet.querySelector<HTMLElement>(".mobile-sheet-scrim");
+  const attach = photoInput.closest<HTMLElement>(".file-button")!;
+  if (!body) return;
+
+  void import("./mobile-sheets").then(({ createMobileSheet }) => {
+    // While a sheet is open the composer shows a close control instead of send.
+    const dismiss = document.createElement("button");
+    dismiss.type = "button";
+    dismiss.className = "icon-button mobile-sheet-dismiss";
+    dismiss.title = "Close panel";
+    dismiss.setAttribute("aria-label", "Close panel");
+    dismiss.append(iconElement("x"));
+    dismiss.hidden = true;
+    dismiss.addEventListener("click", () => mobileSheet?.hide());
+    sendButton.before(dismiss);
+
+    mobileSheet = createMobileSheet({
+      sheet,
+      body,
+      tabs: byId<HTMLElement>("mobile-sheet-tabs"),
+      tabButtons: {
+        emoji: byId<HTMLButtonElement>("mobile-sheet-tab-emoji"),
+        gif: byId<HTMLButtonElement>("mobile-sheet-tab-gif"),
+      },
+      mediaTab: byId<HTMLButtonElement>("mobile-sheet-tab-media"),
+      closeButton: byId<HTMLButtonElement>("mobile-sheet-close"),
+      scrim: scrim ?? undefined,
+      media: [attachmentPreview],
+      emojiPicker,
+      gifPicker,
+      photoButton: byId<HTMLButtonElement>("mobile-sheet-photos"),
+      filesButton: byId<HTMLButtonElement>("mobile-sheet-files"),
+    }, {
+      onOpen: () => { dismiss.hidden = false; sendButton.hidden = true; },
+      onClose: () => { dismiss.hidden = true; sendButton.hidden = false; },
+    });
+
+    // Phone composers use a plus on the left, like other mobile chat apps.
+    attach.title = "Add photos, video, or files";
+    attach.setAttribute("aria-label", "Add photos, video, or files");
+    attach.replaceChildren(iconElement("plus"));
+  });
+
+  const pickFiles = (accept: string) => {
+    if (photoInput.disabled) return;
+    photoInput.accept = accept;
+    photoInput.click();
+  };
+  byId<HTMLButtonElement>("mobile-sheet-photos")?.addEventListener("click", () => pickFiles("image/*,video/*"));
+  byId<HTMLButtonElement>("mobile-sheet-files")?.addEventListener("click", () => pickFiles("*/*"));
+  // The composer controls stay visible on mobile and open the sheet instead of
+  // expanding an inline popup that has nowhere to go on a phone. Capture phase
+  // stops the desktop toggle handler, which would otherwise close the panel the
+  // sheet just opened.
+  const openSheet = (event: Event, target: "media" | "emoji" | "gif") => {
+    if (!mobileSheet) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    mobileSheet.openMode(target);
+  };
+  attach.addEventListener("click", (event) => openSheet(event, "media"), { capture: true });
+  emojiToggle.addEventListener("click", (event) => openSheet(event, "emoji"), { capture: true });
+  gifToggle.addEventListener("click", (event) => openSheet(event, "gif"), { capture: true });
+}
+
+setupMobileComposerSheets();
+
+/**
+ * A phone opens on the conversation, with the room drawer closed. The drawer is
+ * the only navigation surface, so there is no second navigation bar competing
+ * with it for space.
+ */
+function setupMobileNavigation() {
+  if (platform.kind !== "mobile") return;
+  setMobileSidebar(false);
+}
+
+setupMobileNavigation();
+
 document.addEventListener("dragenter", (event) => {
   if (!hasFileDrag(event.dataTransfer)) return;
   event.preventDefault();
@@ -7636,7 +7727,8 @@ document.addEventListener("keydown", (event) => {
     conversationSearch.select();
   }
   if (event.key === "Escape") {
-    if (!gifPicker.hidden) closeGifPicker();
+    if (mobileSheet?.isOpen()) mobileSheet.hide();
+    else if (!gifPicker.hidden) closeGifPicker();
     else if (!emojiPicker.hidden) closeEmojiPicker();
     else if (!emojiSuggestions.hidden) hideEmojiSuggestions();
     else if (!mentionSuggestions.hidden) hideMentionSuggestions();
