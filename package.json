@@ -1,0 +1,35 @@
+{
+  "name": "naigi-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared Naigi web and desktop user interface",
+  "license": "MIT",
+  "engines": { "node": ">=22.12.0" },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "build:web": "node scripts/build.mjs web",
+    "build:desktop": "node scripts/build.mjs desktop"
+  },
+  "dependencies": {
+    "@matrix-org/matrix-sdk-crypto-wasm": "^18.9.0",
+    "firebase": "^12.19.0",
+    "gifenc": "^1.0.3",
+    "gifuct-js": "^2.1.2",
+    "livekit-client": "^2.22.3",
+    "lucide": "^1.49.0",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/qrcode": "^1.5.6",
+    "esbuild": "^0.25.12",
+    "jsdom": "^27.0.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.13.6"
+  }
+}

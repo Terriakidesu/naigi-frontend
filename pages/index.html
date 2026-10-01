@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <title>Sign in · Naigi</title>
+    <link rel="stylesheet" href="/app.css">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  </head>
+  <body class="auth-page">
+    <div class="auth-background" aria-hidden="true"><span></span><span></span></div>
+    <header class="topbar auth-topbar">
+      <div class="brand-lockup">
+        <span class="brand-mark" aria-hidden="true">N</span>
+        <div><strong>Naigi</strong><span class="tag">self-hosted · privacy-focused chat</span></div>
+      </div>
+      <div class="connection-status"><span class="status-dot" aria-hidden="true"></span><span class="status">End-to-end encrypted</span></div>
+    </header>
+
+    <main class="auth-panel panel">
+      <div class="auth-mark" aria-hidden="true">N</div>
+      <p class="eyebrow">WELCOME BACK</p>
+      <h1>Welcome back.</h1>
+      <p class="muted">Sign in to continue. Messages, links, previews, and photo keys are encrypted in your browser.</p>
+      <form id="auth-form" class="stack">
+        <label>Username
+          <input id="auth-username" autocomplete="username" required minlength="3" maxlength="32">
+        </label>
+        <label>Password
+          <input id="auth-password" type="password" autocomplete="current-password" required minlength="12">
+        </label>
+        <button id="auth-submit" type="submit">Sign in</button>
+      </form>
+      <p id="auth-status" class="form-status" role="status"></p>
+      <p class="auth-footnote">New to Naigi? <a class="text-link" href="/register">Create an account</a></p>
+    </main>
+    <script type="module" src="/auth.js"></script>
+  </body>
+</html>

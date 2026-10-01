@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <title>Settings · Naigi</title>
+    <link rel="stylesheet" href="/app.css">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  </head>
+  <body class="settings-page account-settings-page">
+    <div class="shell">
+      <section id="settings-layout" class="chat-layout settings-chat-layout mobile-sidebar-open">
+        <aside id="settings-sidebar" class="sidebar settings-sidebar">
+          <div class="sidebar-heading">
+              <div><strong class="workspace-name">Settings</strong><span class="workspace-subtitle">Private account</span></div>
+            <div class="sidebar-heading-actions">
+              <button id="settings-mobile-sidebar-close" class="icon-button mobile-sidebar-close" type="button" title="Close settings navigation" aria-label="Close settings navigation"><i data-lucide="x"></i></button>
+              <a class="icon-button" href="/app" title="Back to chat" aria-label="Back to chat"><i data-lucide="message-square"></i></a>
+            </div>
+          </div>
+          <nav class="settings-nav" aria-label="Settings navigation">
+            <div class="settings-nav-group">
+              <p class="eyebrow settings-nav-group-title">ACCOUNT</p>
+              <a class="settings-nav-item active" data-settings-tab data-title="Profile" data-description="Manage your name, avatar, and banner." href="#profile"><i data-lucide="user-round"></i><span>Profile</span></a>
+              <a class="settings-nav-item" data-settings-tab data-title="Security" data-description="Change your account password." href="#security"><i data-lucide="key-round"></i><span>Security</span></a>
+              <a class="settings-nav-item" data-settings-tab data-title="Devices" data-description="Browsers linked to your account." href="#devices"><i data-lucide="monitor-smartphone"></i><span>Devices</span></a>
+            </div>
+            <div class="settings-nav-group">
+              <p class="eyebrow settings-nav-group-title">PRIVACY &amp; DATA</p>
+              <a class="settings-nav-item" data-settings-tab data-title="Privacy" data-description="Control local unlock and encryption privacy." href="#privacy"><i data-lucide="shield-check"></i><span>Privacy</span></a>
+              <a class="settings-nav-item" data-settings-tab data-title="Blocked users" data-description="Manage accounts blocked from direct conversations." href="#blocked-users"><i data-lucide="shield"></i><span>Blocked users</span></a>
+              <a class="settings-nav-item" data-settings-tab data-title="Recovery" data-description="Back up encrypted room keys." href="#recovery"><i data-lucide="key-round"></i><span>Recovery</span></a>
+              <a class="settings-nav-item" data-settings-tab data-title="Local data" data-description="Manage encrypted data stored by this browser." href="#local-data"><i data-lucide="database"></i><span>Local data</span></a>
+            </div>
+            <div class="settings-nav-group">
+              <p class="eyebrow settings-nav-group-title">PREFERENCES</p>
+              <a class="settings-nav-item" data-settings-tab data-title="Appearance" data-description="Themes, colors, and custom presets." href="#appearance"><i data-lucide="sliders-horizontal"></i><span>Appearance</span></a>
+              <a class="settings-nav-item" data-settings-tab data-title="Accessibility" data-description="Interface scale, text size, and reduced motion." href="#accessibility"><i data-lucide="zoom-in"></i><span>Accessibility</span></a>
+              <a class="settings-nav-item" data-settings-tab data-title="Chat & media" data-description="Message behavior and media previews." href="#chat-media"><i data-lucide="message-square"></i><span>Chat &amp; media</span></a>
+              <a class="settings-nav-item" data-settings-tab data-title="Notifications" data-description="Desktop alerts, sounds, and quiet hours." href="#notifications"><i data-lucide="bell"></i><span>Notifications</span></a>
+              <a class="settings-nav-item" data-settings-tab data-title="Voice & audio" data-description="Microphone, playback, push-to-talk, and audio devices." href="#audio"><i data-lucide="headphones"></i><span>Voice &amp; audio</span></a>
+              <a class="settings-nav-item" data-settings-tab data-title="About" data-description="Versions, licenses, and acknowledgements." href="#about"><i data-lucide="info"></i><span>About</span></a>
+            </div>
+          </nav>
+        </aside>
+        <button id="settings-mobile-sidebar-backdrop" class="mobile-sidebar-backdrop" type="button" aria-label="Close settings navigation"></button>
+
+        <main class="settings-main">
+          <header class="chat-header settings-header">
+            <div class="chat-header-main">
+              <button id="settings-mobile-sidebar-toggle" class="icon-button mobile-sidebar-toggle" type="button" title="Show settings navigation" aria-label="Show settings navigation" aria-expanded="true"><i data-lucide="menu"></i></button>
+              <span class="channel-icon" aria-hidden="true"><i data-lucide="settings-2"></i></span>
+              <div class="channel-copy"><h2 id="settings-page-title">Profile</h2><span id="settings-page-description" class="channel-subtitle">Manage your name, avatar, and banner.</span></div>
+            </div>
+            <div class="chat-actions">
+              <a class="icon-button settings-close-button" href="/app" title="Close settings (Esc)" aria-label="Close settings and return to chat" aria-keyshortcuts="Escape"><i data-lucide="x"></i></a>
+            </div>
+          </header>
+          <div class="settings-main-content">
+            <section class="settings-content">
+              <section id="about" class="settings-section" data-settings-view hidden>
+                <p class="eyebrow">ABOUT</p>
+                <h1>Naigi</h1>
+                <p class="muted">Version information for your frontend and connected Naigi server.</p>
+                <div class="application-versions" aria-label="Application versions">
+                  <span>Frontend <strong id="frontend-version">—</strong></span>
+                  <span>Naigi server <strong id="server-version">—</strong></span>
+                  <span id="desktop-version-row" hidden>Desktop app <strong id="desktop-app-version">—</strong></span>
+                </div>
+                <div class="about-licenses">
+                  <h2>Licenses &amp; acknowledgements</h2>
+                  <details><summary>Naigi — MIT License</summary><pre data-license-path="/LICENSE">Loading license…</pre></details>
+                  <details><summary>Twemoji — attribution</summary><pre data-license-path="/assets/twemoji/NOTICE.txt">Loading attribution…</pre></details>
+                  <details><summary>Twemoji artwork — CC BY 4.0</summary><pre data-license-path="/assets/twemoji/LICENSE-GRAPHICS">Loading license…</pre></details>
+                  <details><summary>Third-party frontend packages</summary><pre data-license-path="/third-party-licenses.txt">Loading notices…</pre></details>
+                </div>
+              </section>
+          <section id="profile" class="settings-section" data-settings-view>
+            <header class="settings-section-heading">
+              <div>
+                <p class="eyebrow">PROFILE</p>
+                <h1>Your public profile</h1>
+                <p class="settings-section-description">Choose how you appear to people in your shared servers.</p>
+              </div>
+            </header>
+            <div class="profile-identity">
+              <div id="settings-banner" class="profile-banner" aria-hidden="true"></div>
+              <div class="profile-banner-actions">
+                <label id="profile-banner-button" class="profile-image-button">Change banner<input id="profile-banner-input" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/avif"></label>
+                <button id="remove-profile-banner" class="secondary" type="button" hidden>Remove banner</button>
+              </div>
+              <div class="profile-card">
+                <div id="settings-avatar" class="large-avatar" aria-hidden="true">N</div>
+                <div class="profile-card-copy"><strong id="settings-name">Loading…</strong><span id="settings-username" class="muted"></span></div>
+                <div class="profile-image-actions">
+                  <label id="profile-image-button" class="profile-image-button">Change avatar<input id="profile-image-input" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/avif"></label>
+                  <button id="remove-profile-image" class="secondary" type="button" hidden>Remove avatar</button>
+                </div>
+              </div>
+            </div>
+            <p class="muted small profile-image-help">Avatar and banner: PNG, JPG, GIF, WebP, or AVIF · up to 5 MB. Animated GIF avatars are supported.</p>
+            <div class="settings-block profile-details">
+              <div class="settings-block-heading">
+                <div><h2>Display name</h2><p>Use a name that is easy for your contacts to recognize.</p></div>
+              </div>
+              <form id="profile-form" class="settings-form profile-form">
+                <label for="settings-display-name">Name shown in chat<input id="settings-display-name" maxlength="80" required></label>
+                <div class="settings-form-actions">
+                  <span id="profile-form-state" class="settings-form-state" role="status" aria-live="polite">No unsaved changes</span>
+                  <div>
+                    <button id="discard-profile-changes" class="secondary" type="button" hidden>Discard</button>
+                    <button id="save-profile-button" type="submit" disabled>Save changes</button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </section>
+          <section id="security" class="settings-section" data-settings-view hidden>
+            <p class="eyebrow">SECURITY</p>
+            <h1>Account password</h1>
+            <p class="muted">Changing this password does not change your separate local encryption passphrase.</p>
+            <form id="password-form" class="settings-form">
+             <label for="current-password">Current password<input id="current-password" type="password" autocomplete="current-password" required minlength="12"></label>
+             <label for="new-password">New password<input id="new-password" type="password" autocomplete="new-password" required minlength="12"></label>
+             <label for="confirm-password">Confirm new password<input id="confirm-password" type="password" autocomplete="new-password" required minlength="12"></label>
+              <button type="submit">Change password</button>
+            </form>
+            <div class="settings-block">
+              <div class="settings-block-heading"><div><h2>Sign out of this browser</h2><p>End your account session on this browser.</p></div></div>
+              <button id="logout-button" class="danger-button" type="button"><i data-lucide="log-out" aria-hidden="true"></i> Sign out</button>
+            </div>
+         </section>
+          <section id="devices" class="settings-section" data-settings-view hidden>
+           <p class="eyebrow">SECURITY</p>
+            <h1>Your devices</h1>
+           <p class="muted">Each browser has its own encrypted key store. Revoking a device blocks future server access; it does not erase keys or messages already stored there.</p>
+          <div id="device-list" class="device-list"></div>
+        </section>
+           <section id="privacy" class="settings-section" data-settings-view hidden>
+            <p class="eyebrow">PRIVACY</p>
+            <h1>Your keys stay local</h1>
+            <p class="muted">Your local encryption passphrase is used only to unlock this browser’s IndexedDB key store. It is never transmitted to Naigi.</p>
+           <div class="settings-actions">
+             <button id="lock-now-button" class="secondary" type="button">Lock this browser</button>
+             <button id="forget-device-button" class="danger-button" type="button">Forget remembered unlock</button>
+           </div>
+           <p id="local-unlock-status" class="muted small"></p>
+          </section>
+           <section id="recovery" class="settings-section" data-settings-view hidden>
+             <p class="eyebrow">RECOVERY</p>
+              <h1>Bring your history to another device</h1>
+              <p class="muted">Approve a new device from one that already has your history, or restore an encrypted backup with your recovery key. Your account password alone cannot unlock history.</p>
+              <form id="recovery-unlock-form" class="history-unlock-field">
+                <label for="recovery-local-passphrase">Local encryption passphrase</label>
+                <div class="history-unlock-controls">
+                  <input id="recovery-local-passphrase" type="password" autocomplete="off" placeholder="Enter this device’s passphrase" aria-describedby="recovery-unlock-status" required>
+                  <button id="recovery-unlock-button" type="submit">Unlock recovery</button>
+                </div>
+                <p id="recovery-unlock-status" class="muted small" role="status" aria-live="polite">Locked. Unlock this device to restore, back up, or transfer history. Your passphrase stays on this device.</p>
+              </form>
+              <div class="history-recovery-grid">
+                <section class="history-recovery-card">
+                  <h2>Approve from another device</h2>
+                  <p class="muted small">On the new device, request approval. On your existing device, scan the QR or open the link and compare codes.</p>
+                  <button id="history-request-device" type="button">Request device approval</button>
+                  <div id="history-pairing-panel" hidden>
+                    <canvas id="history-pairing-qr" aria-label="Device approval QR code"></canvas>
+                    <p>Verification code: <strong id="history-pairing-code"></strong></p>
+                    <label>Approval link<textarea id="history-pairing-link" readonly spellcheck="false" aria-label="Device approval link"></textarea></label>
+                    <p class="muted small">Keep this link private. It expires after 10 minutes. Both devices must use the same account.</p>
+                    <button id="history-cancel-device" class="secondary" type="button">Cancel request</button>
+                  </div>
+                  <label>On your trusted device<input id="history-approval-link" type="password" autocomplete="off" placeholder="Paste the new device’s approval link" aria-label="Approval link to review"></label>
+                  <button id="history-review-device" class="secondary" type="button">Review approval</button>
+                  <div id="history-approval-panel" hidden>
+                    <p>Verification code: <strong id="history-approval-code"></strong></p>
+                    <label class="checkbox-label"><input id="history-device-confirm" type="checkbox">Both codes match, I control the new device, and this browser can read the messages I want to recover</label>
+                    <button id="history-approve-device" type="button" disabled>Approve history transfer</button>
+                  </div>
+                </section>
+                <section class="history-recovery-card">
+                  <h2>Automatic encrypted backup</h2>
+                  <p id="history-backup-status" class="muted small" role="status">Checking server backup…</p>
+                  <p class="muted small">While an enabled device is unlocked, its history keys are backed up every minute. The server cannot read them. Save the recovery key in your password manager.</p>
+                  <button id="history-generate-key" type="button">Set up recovery key</button>
+                  <div id="history-generated-key-panel" hidden>
+                    <label>Your recovery key<input id="history-generated-key" type="text" readonly autocomplete="off" spellcheck="false"></label>
+                    <label class="checkbox-label"><input id="history-key-saved" type="checkbox">I saved this key somewhere safe</label>
+                    <button id="history-enable-backup" type="button" disabled>Enable encrypted backup</button>
+                  </div>
+                  <label>Restore an existing backup<input id="history-restore-key" type="password" autocomplete="off" placeholder="NCR1-…" aria-label="Recovery key to restore"></label>
+                  <div class="settings-actions"><button id="history-restore-backup" type="button">Restore history</button><button id="history-backup-now" class="secondary" type="button">Back up now</button><button id="history-delete-backup" class="danger-button" type="button">Delete server backup</button></div>
+                </section>
+              </div>
+              <p id="history-recovery-status" class="muted small" role="status" aria-live="polite"></p>
+              <details class="history-manual-backup">
+                <summary>Messages still locked? Check history keys</summary>
+                <p class="muted small">Run this check on both the original and new browsers using the same room link. It checks actual encrypted messages, not cached display text. Only counts are shown; no message text or keys are uploaded.</p>
+                <label class="history-unlock-field">Affected room link<input id="history-diagnostics-link" type="url" placeholder="https://your-host/channels/space-id/room-id" autocomplete="off" spellcheck="false"></label>
+                <button id="history-check-keys" class="secondary" type="button">Check history keys</button>
+                <p id="history-diagnostics-result" class="muted small" role="status" aria-live="polite"></p>
+              </details>
+              <details class="history-manual-backup"><summary>Manual file backup and import</summary>
+             <p class="muted small">Export an encrypted copy of this browser’s room keys for safekeeping or import one on another browser. The recovery passphrase is never uploaded or remembered.</p>
+            <div class="settings-form">
+              <label for="recovery-export-passphrase">New recovery passphrase<input id="recovery-export-passphrase" type="password" autocomplete="new-password" minlength="12"></label>
+              <label for="recovery-export-confirm">Confirm recovery passphrase<input id="recovery-export-confirm" type="password" autocomplete="new-password" minlength="12"></label>
+              <button id="export-recovery-button" type="button">Download recovery backup</button>
+            </div>
+            <hr>
+            <div class="settings-form">
+              <label for="recovery-file">Recovery backup file<input id="recovery-file" type="file" accept=".naigi-recovery,application/json,text/plain"></label>
+              <label for="recovery-import-passphrase">Recovery passphrase<input id="recovery-import-passphrase" type="password" autocomplete="off"></label>
+              <button id="import-recovery-button" class="secondary" type="button">Import room keys</button>
+            </div>
+            </details>
+          </section>
+            <section id="local-data" class="settings-section" data-settings-view hidden>
+              <p class="eyebrow">LOCAL DATA</p>
+              <h1>Encrypted message cache</h1>
+             <p class="muted">This browser caches encrypted message envelopes for faster history loading. The cache contains no plaintext message content and can be fetched again from the server.</p>
+             <p id="message-cache-status" class="muted small" role="status" aria-live="polite">Checking encrypted message cache…</p>
+             <button id="clear-message-cache-button" class="secondary" type="button">Clear encrypted message cache</button>
+             <hr>
+             <div class="danger-zone settings-danger-zone">
+               <h2>Clear this browser</h2>
+               <p class="muted">Removes cached encrypted envelopes, queued encrypted messages, local crypto keys, remembered unlock, device identity, and device-only preferences from this browser. It does not delete your account or server history.</p>
+               <button id="clear-local-data-button" class="danger-button" type="button">Clear local data</button>
+              </div>
+           </section>
+            <section id="blocked-users" class="settings-section" data-settings-view hidden>
+              <p class="eyebrow">PRIVACY</p>
+              <h1>Blocked users</h1>
+              <p class="muted">Blocked users can’t start or continue direct conversations with you. Blocking does not remove either person from a shared space or hide shared-space messages.</p>
+              <div id="blocked-users-list" class="settings-list"><p class="muted">Loading blocked users…</p></div>
+            </section>
+            <section id="audio" class="settings-section" data-settings-view hidden>
+              <p class="eyebrow">VOICE &amp; AUDIO</p>
+              <h1>Your audio, your browser</h1>
+              <p class="muted">Changes save locally and apply to rooms and direct calls. Audio settings, device names, and mic-test audio are never uploaded.</p>
+              <form id="voice-audio-form" class="settings-form voice-audio-form">
+                <section class="settings-preference-group" aria-labelledby="audio-devices-heading">
+                  <header class="settings-preference-heading"><h2 id="audio-devices-heading">Default devices</h2><p>Used for new connections and available in the in-call dropdowns.</p></header>
+                  <label class="settings-preference-row" for="audio-default-input"><span>Microphone</span><select id="audio-default-input"><option value="">System default microphone</option></select></label>
+                  <label class="settings-preference-row" for="audio-default-output"><span>Audio output</span><select id="audio-default-output"><option value="">System default output</option></select></label>
+                  <button id="audio-device-permission" class="secondary" type="button">Allow microphone &amp; refresh devices</button>
+                  <p class="muted small">Device names may require microphone permission. Output selection depends on browser support.</p>
+                </section>
+                <section class="settings-preference-group" aria-labelledby="audio-input-heading">
+                  <header class="settings-preference-heading"><h2 id="audio-input-heading">Microphone</h2><p>Processing happens locally before end-to-end encryption.</p></header>
+                  <label class="settings-preference-row" for="audio-input-mode"><span>Input mode</span><select id="audio-input-mode"><option value="activity">Voice activity</option><option value="push-to-talk">Push to talk</option></select></label>
+                  <div class="settings-preference-row"><span>Push-to-talk shortcut</span><button id="audio-ptt-key" class="secondary audio-key-field" type="button" aria-label="Record push-to-talk shortcut">Space</button></div>
+                  <p class="muted small">Hold the shortcut while Naigi is focused, or use the in-call hold-to-talk button. Shortcuts do not activate while typing or using form controls. Manual mute always takes priority.</p>
+                  <label class="settings-preference-row" for="audio-input-volume"><span>Input volume</span><span class="audio-range-field"><input id="audio-input-volume" type="range" min="0" max="200" step="1" value="100"><output id="audio-input-volume-value" for="audio-input-volume">100%</output></span></label>
+                  <label class="settings-preference-row" for="audio-silence-threshold"><span>Silence threshold</span><span class="audio-range-field"><input id="audio-silence-threshold" type="range" min="-100" max="-10" step="1" value="-100"><output id="audio-threshold-value" for="audio-silence-threshold">Off</output></span></label>
+                  <p class="muted small">In voice-activity mode, quieter input is silenced. Higher thresholds reject more background sound. Fully left disables gating. A short release delay helps preserve word endings.</p>
+                </section>
+                <section class="settings-preference-group" aria-labelledby="audio-output-heading">
+                  <header class="settings-preference-heading"><h2 id="audio-output-heading">Playback</h2><p>Right-click a participant to mute them for yourself or adjust their volume.</p></header>
+                  <label class="settings-preference-row" for="audio-output-volume"><span>Output volume</span><span class="audio-range-field"><input id="audio-output-volume" type="range" min="0" max="100" step="1" value="100"><output id="audio-output-volume-value" for="audio-output-volume">100%</output></span></label>
+                </section>
+                <section class="settings-preference-group" aria-labelledby="audio-test-heading">
+                  <header class="settings-preference-heading"><h2 id="audio-test-heading">Mic test</h2><p>Test your input volume, activity threshold, and push-to-talk without joining a call. Stops after 60 seconds or when you leave this view.</p></header>
+                  <div id="audio-test-meter" class="audio-test-meter" role="meter" aria-label="Microphone input level in dBFS" aria-valuemin="-100" aria-valuemax="0" aria-valuenow="-100"><span></span></div>
+                  <label class="audio-listen-field"><input id="audio-test-listen" type="checkbox"><span>Listen to my microphone (use headphones)</span></label>
+                  <div class="settings-actions"><button id="audio-mic-test" class="secondary" type="button">Start mic test</button><button id="audio-test-ptt" class="secondary" type="button" aria-pressed="false" hidden>Hold to talk</button></div>
+                  <p id="audio-test-status" class="muted small" role="status" aria-live="polite">No microphone is being captured.</p>
+                </section>
+                <p id="audio-save-status" class="muted small" role="status" aria-live="polite">Settings save automatically on this browser.</p>
+              </form>
+            </section>
+              <form id="app-preferences-form" class="settings-form app-preferences-form" hidden>
+                <section id="appearance" class="settings-section" data-settings-view hidden>
+                  <p class="eyebrow">APPEARANCE</p>
+                  <h1>Make Naigi your own</h1>
+                  <p class="muted">Themes and custom presets stay on this device. Shared theme codes contain only appearance settings; files can optionally include a background image.</p>
+                <section class="settings-preference-group" aria-labelledby="appearance-heading">
+                  <header class="settings-preference-heading"><h2 id="appearance-heading">Appearance</h2><p>Make Naigi feel comfortable to use.</p></header>
+                  <div class="theme-choice-field">
+                    <span class="theme-choice-label">Choose a theme</span>
+                    <div id="theme-preset-cards" class="theme-preset-grid" aria-label="Available themes"></div>
+                    <select id="app-theme" class="sr-only" aria-hidden="true" tabindex="-1"><option value="dark">Dark</option><option value="dim">Dim</option><option value="light">Light</option><option value="black">Black (OLED)</option><option value="momotalk">MomoTalk</option></select>
+                  </div>
+                  <label id="app-accent-row" class="settings-preference-row" for="app-accent"><span>Accent color</span><input id="app-accent" type="color" value="#92aaa5"></label>
+                  <div class="theme-preset-actions">
+                    <p class="muted small">Make a preset from your current look, edit it with a live preview, or bring in a theme someone shared.</p>
+                    <button id="create-theme-preset" class="secondary" type="button">Create preset</button>
+                    <button id="edit-theme-preset" class="secondary" type="button" hidden>Edit selected preset</button>
+                    <button id="open-theme-import" class="secondary" type="button">Import theme</button>
+                  </div>
+                  <dialog id="custom-theme-editor" class="theme-editor-dialog" aria-labelledby="custom-theme-editor-heading">
+                    <header class="theme-dialog-header">
+                      <div><p class="eyebrow">THEME STUDIO</p><h2 id="custom-theme-editor-heading">Edit preset</h2><p class="muted">Changes preview live. They stay in this browser and save with your app preferences.</p></div>
+                      <button id="close-theme-editor" class="icon-button" type="button" aria-label="Close theme editor">×</button>
+                    </header>
+                    <div class="theme-editor-layout">
+                      <section class="theme-editor-controls" aria-label="Theme colors">
+                        <label class="theme-preset-name" for="custom-theme-name">Preset name<input id="custom-theme-name" maxlength="48" required></label>
+                        <label class="theme-preset-base" for="custom-theme-base"><span>Starting palette</span><select id="custom-theme-base"><option value="dark">Dark</option><option value="dim">Dim</option><option value="light">Light</option><option value="black">Black (OLED)</option><option value="momotalk">MomoTalk</option></select><small>Changing the palette replaces all color values and gradient stops.</small></label>
+                        <div id="theme-color-controls" class="theme-color-grid"></div>
+                        <p id="theme-contrast-warning" class="theme-contrast-warning" role="status" aria-live="polite" hidden></p>
+                        <details id="theme-design-details" class="theme-design-details" open>
+                          <summary>Full customization</summary>
+                          <p class="theme-design-intro">Adjust the backdrop, layout, shapes, borders, and motion. All values use safe built-in controls—no custom CSS or scripts.</p>
+                          <div class="theme-design-fields">
+                            <fieldset class="theme-design-group">
+                              <legend>Backdrop</legend>
+                              <label for="theme-background-mode">Background style<select id="theme-background-mode"><option value="solid">Solid color</option><option value="gradient">Gradient</option><option value="image">Image</option></select></label>
+                              <div id="theme-gradient-controls" class="theme-gradient-controls" hidden>
+                                <label for="theme-gradient-start">Gradient start<input id="theme-gradient-start" type="color" value="#161d24"></label>
+                                <label for="theme-gradient-end">Gradient end<input id="theme-gradient-end" type="color" value="#0d1319"></label>
+                                <label for="theme-gradient-angle">Direction<select id="theme-gradient-angle"><option value="0">Up</option><option value="45">Up and right</option><option value="90">Right</option><option value="135">Down and right</option><option value="180">Down</option><option value="225">Down and left</option><option value="270">Left</option><option value="315">Up and left</option></select></label>
+                              </div>
+                              <div id="theme-image-controls" class="theme-image-controls" hidden>
+                                <label class="theme-image-file" for="theme-background-file">Choose a local image<input id="theme-background-file" type="file" accept="image/png,image/jpeg,image/webp"></label>
+                                <p id="theme-image-status" class="theme-image-status" role="status" aria-live="polite">PNG, JPEG, or WebP up to 1 MB. Stored in this browser only.</p>
+                                <div class="theme-image-options">
+                                  <label for="theme-image-fit">Image fit<select id="theme-image-fit"><option value="cover">Fill area</option><option value="contain">Fit inside</option></select></label>
+                                  <label for="theme-image-position">Image position<select id="theme-image-position"><option value="center">Center</option><option value="top">Top</option><option value="bottom">Bottom</option></select></label>
+                                  <label for="theme-background-overlay">Dark overlay<input id="theme-background-overlay" type="range" min="0" max="80" step="5" value="35"><output id="theme-background-overlay-value" for="theme-background-overlay">35%</output></label>
+                                </div>
+                                <button id="remove-theme-background" class="secondary" type="button">Remove image</button>
+                              </div>
+                            </fieldset>
+                            <fieldset class="theme-design-group">
+                              <legend>Layout &amp; shape</legend>
+                              <label for="theme-content-width">Message column width<select id="theme-content-width"><option value="narrow">Narrow</option><option value="comfortable">Comfortable</option><option value="wide">Wide</option></select></label>
+                              <label for="theme-density">Spacing density<select id="theme-density"><option value="compact">Compact</option><option value="comfortable">Comfortable</option><option value="spacious">Spacious</option></select></label>
+                              <label for="theme-radius">Corner roundness<input id="theme-radius" type="range" min="0" max="28" step="2" value="12"><output id="theme-radius-value" for="theme-radius">12 px</output></label>
+                              <label for="theme-shadow">Surface shadows<select id="theme-shadow"><option value="none">None</option><option value="soft">Soft</option><option value="deep">Deep</option></select></label>
+                            </fieldset>
+                            <fieldset class="theme-design-group">
+                              <legend>Borders &amp; motion</legend>
+                              <label for="theme-border-style">Border treatment<select id="theme-border-style"><option value="none">None</option><option value="subtle">Subtle</option><option value="solid">Defined</option><option value="dashed">Dashed</option></select></label>
+                              <label for="theme-motion">Message entrance<select id="theme-motion"><option value="none">None</option><option value="fade">Fade</option><option value="slide">Slide</option><option value="pop">Pop</option></select><small>Uses built-in animation presets. Reduce motion always takes priority.</small></label>
+                              <label for="theme-transition-speed">Transition speed<select id="theme-transition-speed"><option value="quick">Quick</option><option value="balanced">Balanced</option><option value="slow">Slow</option></select></label>
+                              <label for="theme-transition-easing">Transition feel<select id="theme-transition-easing"><option value="standard">Standard</option><option value="smooth">Smooth</option><option value="spring">Spring</option></select></label>
+                            </fieldset>
+                          </div>
+                        </details>
+                      </section>
+                      <aside class="theme-editor-preview-panel">
+                        <h3>Live preview</h3>
+                         <p class="muted small">Sample content only—no messages are loaded or decrypted. The preview shows every palette color and design setting; changes stay here until you save preferences.</p>
+                        <div id="theme-editor-preview" class="theme-preview-host" role="img" aria-label="Live theme preview"></div>
+                      </aside>
+                    </div>
+                    <details id="theme-share-code-details" class="theme-share-code-details">
+                      <summary>View raw share code</summary>
+                      <textarea id="theme-export-code" rows="4" readonly aria-label="Theme share code" placeholder="Open to view the theme code"></textarea>
+                    </details>
+                    <footer class="theme-dialog-footer">
+                      <button id="delete-theme-preset" class="danger-button" type="button">Delete preset</button>
+                      <div class="theme-dialog-footer-actions">
+                        <button id="download-theme-preset" class="secondary" type="button">Download theme file</button>
+                        <button id="copy-theme-preset" class="secondary" type="button">Copy share code</button>
+                        <button id="cancel-theme-editor" class="secondary" type="button">Cancel</button>
+                        <button id="done-theme-editor" type="button">Done editing</button>
+                      </div>
+                    </footer>
+                  </dialog>
+                  <dialog id="theme-import-dialog" class="theme-import-dialog" aria-labelledby="theme-import-heading">
+                    <header class="theme-dialog-header">
+                      <div><p class="eyebrow">THEME STUDIO</p><h2 id="theme-import-heading">Import a theme</h2><p class="muted">Review the palette before adding it. Import accepts Naigi theme codes and .json theme files.</p></div>
+                      <button id="close-theme-import" class="icon-button" type="button" aria-label="Close theme import">×</button>
+                    </header>
+                    <div class="theme-import-layout">
+                      <section class="theme-import-inputs">
+                        <label for="theme-import-code">Paste a theme code<textarea id="theme-import-code" rows="7" aria-label="Paste a shared theme code" placeholder="Paste a Naigi theme code here"></textarea></label>
+                        <label class="theme-file-input" for="theme-import-file">Or choose a theme file<input id="theme-import-file" type="file" accept=".json,.naigi-theme,application/json"></label>
+                        <button id="review-theme-import" class="secondary" type="button">Review theme</button>
+                        <p id="theme-import-status" class="theme-import-status" role="status" aria-live="polite"></p>
+                      </section>
+                      <section id="theme-import-review-panel" class="theme-import-review-panel" aria-label="Theme import preview" hidden>
+                        <span class="eyebrow">PREVIEW</span>
+                        <h3 id="theme-import-preview-name"></h3>
+                        <p id="theme-import-preview-base" class="muted small"></p>
+                        <div id="theme-import-preview" class="theme-preview-host" role="img" aria-label="Preview of the imported theme"></div>
+                        <p class="theme-import-note">Theme files can contain a validated embedded image. No remote assets, account information, or messages are accepted.</p>
+                      </section>
+                    </div>
+                    <footer class="theme-dialog-footer">
+                      <span class="muted small">Confirming adds the preset to this browser’s unsaved preferences.</span>
+                      <div class="theme-dialog-footer-actions">
+                        <button id="cancel-theme-import" class="secondary" type="button">Cancel</button>
+                        <button id="import-theme-preset" type="button" disabled>Import &amp; use preset</button>
+                      </div>
+                    </footer>
+                  </dialog>
+                </section>
+                </section>
+                <section id="accessibility" class="settings-section" data-settings-view hidden>
+                  <p class="eyebrow">ACCESSIBILITY</p>
+                  <h1>Comfortable reading</h1>
+                  <p class="muted">Adjust scale, text size, and motion for this browser.</p>
+                  <section class="settings-preference-group" aria-label="Reading and motion">
+                  <label class="checkbox-label settings-checkbox"><input id="app-reduced-motion" type="checkbox"><span>Reduce motion</span></label>
+                  <div class="settings-preference-row"><label for="app-scale">Interface scale</label><div class="app-scale-control"><div class="app-scale-range app-scale-range-interface"><input id="app-scale" type="range" min="85" max="200" step="5" value="100" aria-label="Interface scale" aria-valuetext="100%"><div class="app-scale-ticks" aria-hidden="true"><span>85%</span><span>100%</span><span>125%</span><span>150%</span><span>175%</span><span>200%</span></div></div><output id="app-scale-value" for="app-scale" aria-live="off">100%</output></div></div>
+                  <div class="settings-preference-row"><label for="app-message-text-size">Message text size</label><div class="app-scale-control"><div class="app-scale-range app-scale-range-message"><input id="app-message-text-size" type="range" min="12" max="24" step="1" value="14" aria-label="Message text size" aria-valuetext="14px"><div class="app-scale-ticks" aria-hidden="true"><span>12px</span><span>14px</span><span>16px</span><span>18px</span><span>20px</span><span>22px</span><span>24px</span></div></div><output id="app-message-text-size-value" for="app-message-text-size" aria-live="off">14px</output></div></div>
+                  <div id="app-message-size-preview" class="message-size-preview" role="group" aria-label="Chat preview">
+                    <div class="message-size-preview-heading"><span>Live message preview</span><i data-lucide="message-square" aria-hidden="true"></i></div>
+                    <div class="message-size-preview-row">
+                      <span class="message-size-preview-avatar" aria-hidden="true">R</span>
+                      <div class="message-size-preview-copy">
+                        <div class="message-size-preview-meta"><strong>Riley</strong><time>now</time></div>
+                        <p id="app-message-size-preview-text" class="message-size-preview-text">Could you share the notes after lunch? <strong>I’ll take a look and reply here.</strong></p>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+                </section>
+                <section id="chat-media" class="settings-section" data-settings-view hidden>
+                  <p class="eyebrow">CHAT &amp; MEDIA</p>
+                  <h1>Messages and previews</h1>
+                <section class="settings-preference-group" aria-labelledby="chat-behavior-heading">
+                  <header class="settings-preference-heading"><h2 id="chat-behavior-heading">Chat and media</h2><p>Choose what loads and how messages behave.</p></header>
+                  <label class="checkbox-label settings-checkbox"><input id="app-auto-load-media" type="checkbox"><span>Automatically load encrypted images and videos<small>Spoiler previews stay blurred until revealed.</small></span></label>
+                  <label class="checkbox-label settings-checkbox"><input id="app-external-previews" type="checkbox"><span>Load external link and GIF previews</span></label>
+                  <label class="checkbox-label settings-checkbox"><input id="app-enter-to-send" type="checkbox"><span>Enter sends messages <small>Shift + Enter adds a new line</small></span></label>
+                  <label class="checkbox-label settings-checkbox"><input id="app-compact-messages" type="checkbox"><span>Compact message spacing</span></label>
+                </section>
+                </section>
+                <section id="notifications" class="settings-section" data-settings-view hidden>
+                  <p class="eyebrow">NOTIFICATIONS</p>
+                  <h1>Alerts on your terms</h1>
+                <section class="settings-preference-group" aria-labelledby="notifications-heading">
+                  <header class="settings-preference-heading"><h2 id="notifications-heading">Notifications</h2><p>Control when this browser alerts you.</p></header>
+                  <label class="checkbox-label settings-checkbox"><input id="app-sounds" type="checkbox"><span>Notification sounds</span></label>
+                  <label class="settings-preference-row" for="app-notification-mode"><span>Desktop notifications</span><select id="app-notification-mode"><option value="off">Off</option><option value="all">All new messages</option><option value="mentions">Mentions only</option></select></label>
+                  <p class="muted small app-preference-help">Notification text is always generic and never includes message content. Optional Firebase setup can deliver “All new messages” alerts while Naigi is closed; mentions-only alerts require the app to be open. Closed-app alerts cannot apply room mutes because room IDs are not sent to Firebase.</p>
+                  <label class="checkbox-label settings-checkbox"><input id="app-quiet-hours-enabled" type="checkbox"><span>Enable quiet hours<small>Suppress desktop notifications and sounds during the selected local-time window.</small></span></label>
+                  <div class="app-quiet-hours"><label for="app-quiet-hours-start">From<input id="app-quiet-hours-start" type="time" value="22:00"></label><label for="app-quiet-hours-end">Until<input id="app-quiet-hours-end" type="time" value="08:00"></label></div>
+                </section>
+                </section>
+                <div class="settings-form-actions app-preferences-actions">
+                  <span id="app-preferences-status" class="settings-form-state" role="status" aria-live="polite">No unsaved changes</span>
+                  <div>
+                    <button id="discard-app-preferences-button" class="secondary" type="button" hidden>Discard</button>
+                    <button id="save-app-preferences-button" type="submit" disabled>Save preferences</button>
+                  </div>
+                </div>
+              </form>
+        <p id="settings-status" class="form-status" role="status"></p>
+            </section>
+          </div>
+        </main>
+      </section>
+    </div>
+    <script type="module" src="/settings.js"></script>
+  </body>
+</html>

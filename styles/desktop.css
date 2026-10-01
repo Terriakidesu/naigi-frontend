@@ -1,0 +1,6 @@
+.desktop-titlebar { position: fixed; inset: 0 0 auto; z-index: 10000; height: 32px; display: flex; align-items: center; justify-content: center; background: #11151b; color: #b9c1cc; border-bottom: 1px solid #242a33; -webkit-app-region: drag; user-select: none; }
+.desktop-titlebar-title { max-width: calc(100% - 320px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; }
+.desktop-titlebar-navigation { position: absolute; left: 10px; top: 0; height: 32px; display: flex; align-items: center; gap: 4px; -webkit-app-region: no-drag; }
+.desktop-titlebar-navigation button { width: 28px; height: 26px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: #8993a1; font-size: 18px; line-height: 1; }
+.desktop-titlebar-navigation button:hover { background: #252b34; color: #f0f3f7; }
+body.desktop-window { padding-top: 32px; }
