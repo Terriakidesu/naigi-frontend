@@ -3,6 +3,12 @@ import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
 import { renderSettingsNavigation, resolveSettingsHash } from "../src/settings-navigation";
 
+test("account gear opens Profile while the voice settings shortcut opens Audio", () => {
+  document.documentElement.innerHTML = readFileSync("pages/chat.html", "utf8");
+  expect(document.querySelector('a[aria-label="Settings"]')!.getAttribute("href")).toBe("/settings#profile");
+  expect(document.querySelector("#voice-call-settings")!.getAttribute("href")).toBe("/settings#audio");
+});
+
 test("recovery details closes before local-data and About is a navigable view", () => {
   document.documentElement.innerHTML = readFileSync("pages/settings.html", "utf8");
   expect(document.querySelector("#local-data")!.closest("details")).toBeNull();

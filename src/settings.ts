@@ -24,6 +24,8 @@ import {
 import { deleteThemeBackgroundImages, readThemeBackgroundImage, saveThemeBackgroundImage } from "./theme-assets";
 import { CryptoClient, LocalCryptoStoreError } from "./crypto";
 import { iconElement, renderIcons } from "./icons";
+import { devicePresentation, localDeviceId } from "./device-presentation";
+import { platform } from "#platform";
 import { clearLocalData } from "./local-data";
 import { disableFcmPush, synchronizeFcmPush } from "./push-notifications";
 import { cachedMessageCacheStats, clearCachedMessages } from "./message-cache";
@@ -197,18 +199,20 @@ function renderDevices(devices: Device[]) {
     return;
   }
   for (const device of devices) {
+    const current = device.id === localDeviceId(currentUserId);
+    const presentation = devicePresentation(device.name, current, platform.kind);
     const row = document.createElement("div");
     row.className = "device-row";
     const icon = document.createElement("span");
     icon.className = "member-avatar device-icon";
-    icon.append(iconElement("monitor"));
+    icon.append(iconElement(presentation.icon));
     renderIcons(icon);
     const copy = document.createElement("div");
     copy.className = "device-copy";
     const title = document.createElement("strong");
-    title.textContent = device.name || "Browser device";
+    title.textContent = presentation.title;
     const details = document.createElement("span");
-    details.textContent = `${device.id} · added ${new Date(device.createdAt).toLocaleDateString()}`;
+    details.textContent = `${current ? "This device · " : ""}${device.id} · added ${new Date(device.createdAt).toLocaleDateString()}`;
     copy.append(title, details);
     row.append(icon, copy);
     if (device.revokedAt) {
@@ -222,7 +226,7 @@ function renderDevices(devices: Device[]) {
       revoke.type = "button";
       revoke.textContent = "Revoke";
       revoke.addEventListener("click", async () => {
-        if (!window.confirm(`Revoke ${device.name || "this browser"}? It will lose future server access, but locally stored keys cannot be erased remotely.`)) return;
+        if (!window.confirm(`Revoke ${presentation.title}? It will lose future server access, but locally stored keys cannot be erased remotely.`)) return;
         revoke.disabled = true;
         try {
           await api.revokeDevice(device.id);

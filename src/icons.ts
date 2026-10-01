@@ -1,4 +1,6 @@
 import {
+  AppWindow,
+  Globe,
   Activity,
   Check,
   ExternalLink,
@@ -81,6 +83,8 @@ import {
 } from "lucide";
 
 const iconSet = {
+  AppWindow,
+  Globe,
   Check,
   ExternalLink,
   GripVertical,

@@ -55,6 +55,9 @@ import { roomReferenceSlug, roomReferenceToken } from "./room-reference";
 import { isPlaintextAttachment, readTextPreview, textLanguage, textPreviewExcerpt } from "./text-file";
 import { confirmLocalUnlock, lockLocalSession, resolveLocalPassphrase } from "./unlock-vault";
 import { iconElement, renderIcons } from "./icons";
+import { setVoiceDockButton } from "./voice-dock-button";
+import { createSpoilerPreview } from "./media-spoiler-preview";
+import { readSpoilerCache, writeSpoilerCache } from "./media-spoiler-cache";
 import { askText, confirmVoiceDeviceSwitch, showOneTimeToken } from "./ui-dialog";
 import { platform } from "#platform";
 
@@ -861,16 +864,6 @@ function roomAudioStatusTone(state: VoiceRoomView): "idle" | "connecting" | "rea
   return "idle";
 }
 
-function setVoiceDockButton(button: HTMLButtonElement, visible: boolean, icon: string, label: string, pressed?: boolean) {
-  button.hidden = !visible;
-  button.title = label;
-  button.setAttribute("aria-label", label);
-  if (pressed === undefined) button.removeAttribute("aria-pressed");
-  else button.setAttribute("aria-pressed", String(pressed));
-  button.classList.toggle("is-active", Boolean(pressed));
-  button.replaceChildren(iconElement(icon));
-}
-
 function updateVoiceDockVisibility() {
   const callState = voiceCalls?.currentState;
   const viewingVoiceRoom = chatContent.dataset.voiceRoom === "true";
@@ -1114,18 +1107,16 @@ function renderVoiceCall(state: VoiceCallView) {
   if (outputPicker) outputPicker.hidden = incoming;
   if (inputControl) {
     inputControl.hidden = incoming;
-    inputControl.dataset.toggleVisible = String(connected);
   }
   if (outputControl) {
     outputControl.hidden = incoming;
-    outputControl.dataset.toggleVisible = String(connected);
   }
   voiceCallStatus.dataset.state = connected ? "ready" : "connecting";
   setVoiceDockButton(voiceCallAccept, incoming, "phone", "Accept call");
   setVoiceDockButton(voiceCallDecline, incoming, "phone-off", "Decline call");
   setVoiceDockButton(voiceCallEnableAudio, false, "volume-2", "Enable audio playback");
-  setVoiceDockButton(voiceCallMute, connected, state.muted ? "mic-off" : "mic", state.muted ? "Unmute microphone" : "Mute microphone", state.muted);
-  setVoiceDockButton(voiceCallDeafen, connected, state.deafened ? "volume-x" : "headphones", state.deafened ? "Undeafen audio" : "Deafen audio", state.deafened);
+  setVoiceDockButton(voiceCallMute, !incoming, state.muted ? "mic-off" : "mic", state.muted ? "Unmute microphone" : "Mute microphone", state.muted, !connected);
+  setVoiceDockButton(voiceCallDeafen, !incoming, state.deafened ? "volume-x" : "headphones", state.deafened ? "Undeafen audio" : "Deafen audio", state.deafened, !connected);
   setVoiceDockButton(voiceCallEnd, !incoming, "phone-off", state.status === "calling" ? "Cancel call" : "Leave call");
   updateVoiceCallButton();
   renderIcons(voiceCallDock);
@@ -1159,23 +1150,19 @@ function renderVoiceRoom(state: VoiceRoomView) {
   if (outputPicker) outputPicker.hidden = false;
   if (inputControl) {
     inputControl.hidden = false;
-    inputControl.dataset.toggleVisible = String(connected);
   }
   if (outputControl) {
     outputControl.hidden = false;
-    outputControl.dataset.toggleVisible = String(connected);
   }
   setVoiceDockButton(voiceCallAccept, false, "phone", "Accept call");
   setVoiceDockButton(voiceCallDecline, false, "phone-off", "Decline call");
   setVoiceDockButton(voiceCallEnableAudio, Boolean(state.audioPlaybackBlocked), "volume-2", "Enable audio playback");
-  setVoiceDockButton(voiceCallMute, connected, state.muted ? "mic-off" : "mic", state.muted ? "Unmute microphone" : "Mute microphone", state.muted);
-  setVoiceDockButton(voiceCallDeafen, connected, state.deafened ? "volume-x" : "headphones", state.deafened ? "Undeafen audio" : "Deafen audio", state.deafened);
+  setVoiceDockButton(voiceCallMute, true, state.muted ? "mic-off" : "mic", state.muted ? "Unmute microphone" : "Mute microphone", state.muted, !connected);
+  setVoiceDockButton(voiceCallDeafen, true, state.deafened ? "volume-x" : "headphones", state.deafened ? "Undeafen audio" : "Deafen audio", state.deafened, !connected);
   setVoiceDockButton(voiceCallEnd, true, "phone-off", state.status === "joining" || state.status === "connecting" ? "Cancel joining voice room" : "Leave voice room");
   setVoiceDockButton(voiceRoomEnableAudio, Boolean(state.audioPlaybackBlocked), "volume-2", "Enable audio playback");
-  setVoiceDockButton(voiceRoomMute, connected, state.muted ? "mic-off" : "mic", state.muted ? "Unmute microphone" : "Mute microphone", state.muted);
-  setVoiceDockButton(voiceRoomDeafen, connected, state.deafened ? "volume-x" : "headphones", state.deafened ? "Undeafen audio" : "Deafen audio", state.deafened);
-  voiceRoomMute.closest<HTMLElement>(".voice-device-control")!.dataset.toggleVisible = String(connected);
-  voiceRoomDeafen.closest<HTMLElement>(".voice-device-control")!.dataset.toggleVisible = String(connected);
+  setVoiceDockButton(voiceRoomMute, true, state.muted ? "mic-off" : "mic", state.muted ? "Unmute microphone" : "Mute microphone", state.muted, !connected);
+  setVoiceDockButton(voiceRoomDeafen, true, state.deafened ? "volume-x" : "headphones", state.deafened ? "Undeafen audio" : "Deafen audio", state.deafened, !connected);
   setVoiceDockButton(voiceRoomLeave, true, "phone-off", state.status === "joining" || state.status === "connecting" ? "Cancel joining voice room" : "Leave voice room");
   updateVoiceCallButton();
   renderIcons(voiceCallDock);
@@ -6254,6 +6241,7 @@ function appendEncryptedMedia(
       if (image) image.alt = filename || "Encrypted image";
       return;
     }
+    if (!pendingMediaLoads.has(card)) loadPromise = undefined;
     renderPending();
     void loadMedia();
   };
@@ -6285,6 +6273,32 @@ function appendEncryptedMedia(
     for (const button of card.querySelectorAll<HTMLButtonElement>("button")) button.disabled = true;
     loadPromise = (async () => {
       try {
+        if (isVisual && isSpoiler && !revealed) {
+          const userId = currentUser?.id;
+          let blurred = userId ? await readSpoilerCache(content, userId) : undefined;
+          requestController.signal.throwIfAborted();
+          if (!blurred) {
+            const original = await activeCryptoClient.decryptMedia(content, { signal: requestController.signal });
+            blurred = await createSpoilerPreview(original, isVideo, requestController.signal);
+            if (userId) await writeSpoilerCache(content, userId, blurred);
+          }
+          if (!card.isConnected || requestController.signal.aborted) return undefined;
+          if (!revealed) {
+            const thumbnail = document.createElement("img");
+            thumbnail.className = "media-preview media-spoiler-preview";
+            thumbnail.src = blurred.src;
+            thumbnail.width = blurred.width;
+            thumbnail.height = blurred.height;
+            thumbnail.style.width = `${Math.min(blurred.width, 520)}px`;
+            thumbnail.style.aspectRatio = `${blurred.width} / ${blurred.height}`;
+            thumbnail.alt = "Blurred spoiler preview";
+            card.classList.add("media-loaded", "encrypted-media-spoiler");
+            card.replaceChildren(thumbnail, createMediaSpoilerCover());
+            if (preserveLatestPosition) scrollToLatest();
+            // Do not retain decrypted full-size media for a concealed attachment.
+            return undefined;
+          }
+        }
         const blob = await activeCryptoClient.decryptMedia(content, {
           signal: requestController.signal,
           onProgress: (loadedBytes, totalBytes) => {
@@ -6377,14 +6391,14 @@ function appendEncryptedMedia(
             const player = preview as HTMLVideoElement;
             player.muted = true;
             player.playsInline = true;
-            player.preload = concealedSpoiler ? "auto" : "metadata";
+            player.preload = "metadata";
             const playMark = document.createElement("span");
             playMark.className = "media-play-mark";
             playMark.setAttribute("aria-hidden", "true");
             playMark.append(iconElement("play"));
             card.append(preview, playMark);
           } else {
-            (preview as HTMLImageElement).alt = concealedSpoiler ? "Blurred image spoiler" : filename || "Encrypted image";
+            (preview as HTMLImageElement).alt = filename || "Encrypted image";
             (preview as HTMLImageElement).loading = "eager";
             card.append(preview);
           }

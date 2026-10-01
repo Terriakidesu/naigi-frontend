@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## 0.1.3 — 2026-10-01
+
+### Fixed
+
+- Spoiler media uses tiny pre-rendered thumbnails instead of full-resolution CSS blur, with a bounded encrypted disk cache and no retained full-size decrypted media until Reveal.
+- The account settings gear opens Profile rather than Voice & audio; the dedicated voice shortcut still opens audio settings.
+- Device settings distinguish Naigi Desktop from web browsers, identify this device, and avoid guessing the platform of legacy registrations.
+- Strengthened media spoiler blur and darkened the reveal cover to better conceal images and video previews.
+- Voice controls keep their full split-button layout while joining or connecting, with mute and deafen disabled until audio is ready.
+
 ## 0.1.2 — 2026-10-01
 
 ### Fixed
