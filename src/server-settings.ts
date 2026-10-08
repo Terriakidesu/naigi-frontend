@@ -17,6 +17,7 @@ import { renderAvatar } from "./avatar";
 import { applyAppPreferences, loadAppPreferences, readableAccentText, type AppTheme } from "./app-preferences";
 import { CryptoClient, LocalCryptoStoreError } from "./crypto";
 import { iconElement, renderIcons } from "./icons";
+import { canClearNsfw } from "./content-flags";
 import { highestSeparatedRole } from "./member-roles";
 import { setupSpaceSettingsLists } from "./space-settings-layout";
 import { decryptCustomEmojiImage } from "./custom-emoji-media";
@@ -344,6 +345,7 @@ function readableError(error: unknown) {
     if (error.code === "role_hierarchy_violation") return "You can only manage roles below your highest role.";
     if (error.code === "server_banned") return "This account is banned from the server.";
     if (error.code === "cannot_archive_last_channel") return "A space must keep one active encrypted room.";
+    if (error.code === "channel_nsfw_is_permanent") return "A room marked as adult content stays marked. Archive it to stop using it.";
     if (error.code === "cannot_archive_metadata_channel") return "The original channel anchors encrypted server metadata and cannot be archived.";
     if (error.code === "unsupported_server_branding_type") return "That image type is not supported.";
     if (error.code === "invalid_server_branding") return "The image bytes were not valid.";
@@ -1261,7 +1263,9 @@ async function saveChannel(
       updates.position = Math.max(0, Number(position.value) || 0);
     }
     if (hasAnyPermission("manage_channels")) {
-      updates.nsfw = nsfw.checked;
+      // Never send a clear for the adult-content mark: the server refuses it, and a marked room's
+      // locked box would otherwise look like a request to unmark it.
+      updates.nsfw = canClearNsfw(channel) ? nsfw.checked : true;
       updates.spoiler = spoiler.checked;
     }
     if (Object.keys(updates).length === 0) return;
@@ -1335,10 +1339,14 @@ function renderChannels() {
     const canMarkContent = hasAnyPermission("manage_channels");
     const nsfw = document.createElement("input");
     nsfw.type = "checkbox";
-    nsfw.checked = channel.nsfw === true;
+    // The adult-content mark is one-way, so a marked room shows the box locked rather than offering
+    // a change the server would refuse.
+    const nsfwIsPermanent = !canClearNsfw(channel);
+    nsfw.checked = nsfwIsPermanent;
     nsfw.className = "channel-content-flag";
-    nsfw.disabled = !canMarkContent;
+    nsfw.disabled = nsfwIsPermanent || !canMarkContent;
     nsfw.setAttribute("aria-label", `Adult content warning for ${fallbackName}`);
+    nsfw.title = nsfwIsPermanent ? "This room stays marked as adult content. Archive it to stop using it." : "";
     const spoiler = document.createElement("input");
     spoiler.type = "checkbox";
     spoiler.checked = channel.spoiler === true;

@@ -50,3 +50,13 @@ export function needsNsfwConfirmation(channel: { id: string; nsfw?: boolean; kin
   if (!channel || channel.nsfw !== true || channel.kind === "voice") return false;
   return !confirmed.has(channel.id);
 }
+
+/**
+ * Whether the adult-content mark may still be turned off for a room.
+ *
+ * The mark is one-way, so this is false for any room that already carries it. The settings row uses it
+ * to lock the control, and the save path uses it to never send a clear.
+ */
+export function canClearNsfw(channel: { nsfw?: boolean } | undefined) {
+  return channel?.nsfw !== true;
+}

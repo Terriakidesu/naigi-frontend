@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { needsNsfwConfirmation, nsfwConfirmedChannelIds, rememberNsfwConfirmation } from "./content-flags";
+import { canClearNsfw, needsNsfwConfirmation, nsfwConfirmedChannelIds, rememberNsfwConfirmation } from "./content-flags";
 
 beforeEach(() => {
   const values = new Map<string, string>();
@@ -64,4 +64,11 @@ test("confirming the same room twice does not duplicate it", () => {
   rememberNsfwConfirmation("user-1", "room-9");
   rememberNsfwConfirmation("user-1", "room-9");
   expect([...nsfwConfirmedChannelIds("user-1")]).toEqual(["room-9"]);
+});
+
+test("the adult-content mark can only be cleared while it is not set", () => {
+  expect(canClearNsfw({ nsfw: false })).toBe(true);
+  expect(canClearNsfw({})).toBe(true);
+  expect(canClearNsfw(undefined)).toBe(true);
+  expect(canClearNsfw({ nsfw: true })).toBe(false);
 });

@@ -391,6 +391,8 @@
 .channel-content-flag-option { display: inline-flex; align-items: center; gap: 0.28rem; color: var(--text-muted); font-size: 0.66rem; white-space: nowrap; cursor: pointer; }
 .channel-content-flag-option input { margin: 0; accent-color: var(--accent); }
 .channel-content-flag-option:has(input:disabled) { opacity: 0.45; cursor: default; }
+/* Locked, not merely unavailable: the adult-content mark is one-way and should read that way. */
+.channel-content-flag-option:has(input:disabled:checked) { opacity: 1; color: var(--danger-text); cursor: default; }
 .channel-content-flag-mark { display: grid; place-items: center; color: var(--text-faint); }
 .channel-content-flag-mark svg { width: 12px; height: 12px; stroke-width: 1.9; }
 .settings-row-copy { min-width: 0; margin-right: auto; }
