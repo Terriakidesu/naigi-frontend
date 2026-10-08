@@ -1238,7 +1238,15 @@ function renderCategories() {
   renderCategoryOptions();
 }
 
-async function saveChannel(channel: ServerChannel, name: HTMLInputElement, category: HTMLSelectElement, position: HTMLInputElement, button: HTMLButtonElement) {
+async function saveChannel(
+  channel: ServerChannel,
+  name: HTMLInputElement,
+  category: HTMLSelectElement,
+  position: HTMLInputElement,
+  nsfw: HTMLInputElement,
+  spoiler: HTMLInputElement,
+  button: HTMLButtonElement,
+) {
   button.disabled = true;
   try {
     const normalized = name.value.trim();
@@ -1251,6 +1259,10 @@ async function saveChannel(channel: ServerChannel, name: HTMLInputElement, categ
     }
     if (hasAnyPermission("manage_channels", "reorder_channels")) {
       updates.position = Math.max(0, Number(position.value) || 0);
+    }
+    if (hasAnyPermission("manage_channels")) {
+      updates.nsfw = nsfw.checked;
+      updates.spoiler = spoiler.checked;
     }
     if (Object.keys(updates).length === 0) return;
     await api.updateChannel(currentServer!.id, channel.id, updates);
@@ -1318,6 +1330,38 @@ function renderChannels() {
     position.value = String(channel.position);
     position.className = "position-input";
     position.setAttribute("aria-label", "Channel order");
+    // Content markers are set separately from room editing: the server asks for full room management,
+    // and a member who can only rename a room cannot decide what it warns about.
+    const canMarkContent = hasAnyPermission("manage_channels");
+    const nsfw = document.createElement("input");
+    nsfw.type = "checkbox";
+    nsfw.checked = channel.nsfw === true;
+    nsfw.className = "channel-content-flag";
+    nsfw.disabled = !canMarkContent;
+    nsfw.setAttribute("aria-label", `Adult content warning for ${fallbackName}`);
+    const spoiler = document.createElement("input");
+    spoiler.type = "checkbox";
+    spoiler.checked = channel.spoiler === true;
+    spoiler.className = "channel-content-flag";
+    spoiler.disabled = !canMarkContent;
+    spoiler.setAttribute("aria-label", `Spoiler room for ${fallbackName}`);
+    const flags = document.createElement("div");
+    flags.className = "channel-content-flags";
+    const flagOption = (label: string, icon: string) => {
+      const wrapper = document.createElement("label");
+      wrapper.className = "channel-content-flag-option";
+      const mark = document.createElement("span");
+      mark.className = "channel-content-flag-mark";
+      mark.setAttribute("aria-hidden", "true");
+      mark.append(iconElement(icon));
+      wrapper.append(mark, document.createTextNode(label));
+      return wrapper;
+    };
+    const nsfwLabel = flagOption("Adult content", "triangle-alert");
+    nsfwLabel.prepend(nsfw);
+    const spoilerLabel = flagOption("Spoiler room", "eye-off");
+    spoilerLabel.prepend(spoiler);
+    flags.append(nsfwLabel, spoilerLabel);
     name.disabled = !hasAnyPermission("manage_channels", "edit_channels") || !metadataReady;
     category.disabled = !hasAnyPermission("manage_channels", "edit_channels") || !metadataReady;
     position.disabled = !hasAnyPermission("manage_channels", "reorder_channels") || !metadataReady;
@@ -1325,7 +1369,7 @@ function renderChannels() {
     save.type = "button";
     save.textContent = "Save";
     save.disabled = !hasAnyPermission("manage_channels", "edit_channels", "reorder_channels") || !metadataReady;
-    save.addEventListener("click", () => void saveChannel(channel, name, category, position, save));
+    save.addEventListener("click", () => void saveChannel(channel, name, category, position, nsfw, spoiler, save));
     const archive = document.createElement("button");
     archive.className = "danger-button";
     archive.type = "button";
@@ -1343,7 +1387,7 @@ function renderChannels() {
         archive.disabled = false;
       }
     });
-    row.append(handle, name, kind, category, position, save, archive);
+    row.append(handle, name, kind, category, position, flags, save, archive);
     channelList.append(row);
     }
   }

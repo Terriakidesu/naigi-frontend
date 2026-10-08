@@ -16,6 +16,56 @@ function createDialog(title: string, description: string) {
 
 let externalDialogId = 0;
 
+/**
+ * Blocks entry to a room marked as adult content until the user chooses to continue.
+ *
+ * This is the only thing standing between a shoulder-surfer and the room, so it says nothing about the
+ * contents, offers no shortcut past it, and starts focused on the way out.
+ */
+export function confirmNsfwChannel(roomName: string) {
+  return new Promise<boolean>((resolve) => {
+    const dialog = createDialog("This room is marked as adult content", `Nothing in ${roomName} has been loaded. If you are sharing this screen, or are not sure what you are opening, close this first.`);
+    dialog.classList.add("nsfw-dialog");
+    const heading = dialog.querySelector("h2")!;
+    const hint = dialog.querySelector("p.muted")!;
+    heading.id = `nsfw-room-title-${++externalDialogId}`;
+    hint.id = `${heading.id}-description`;
+    dialog.setAttribute("aria-labelledby", heading.id);
+    dialog.setAttribute("aria-describedby", hint.id);
+    const mark = document.createElement("span");
+    mark.className = "nsfw-dialog-mark";
+    mark.setAttribute("aria-hidden", "true");
+    mark.append(iconElement("triangle-alert"));
+    heading.prepend(mark);
+
+    const actions = document.createElement("div");
+    actions.className = "app-dialog-actions";
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "secondary";
+    cancel.textContent = "Go back";
+    const open = document.createElement("button");
+    open.type = "button";
+    open.textContent = "Continue anyway";
+    let approved = false;
+    cancel.addEventListener("click", () => dialog.close());
+    open.addEventListener("click", () => {
+      approved = true;
+      dialog.close();
+    });
+    actions.append(cancel, open);
+    dialog.append(actions);
+    dialog.addEventListener("close", () => resolve(approved), { once: true });
+    // Escape counts as going back, not as continuing.
+    dialog.addEventListener("cancel", (event) => {
+      event.preventDefault();
+      dialog.close();
+    }, { once: true });
+    dialog.showModal();
+    cancel.focus();
+  });
+}
+
 export function confirmVoiceDeviceSwitch() {
   return new Promise<boolean>((resolve) => {
     const dialog = createDialog("Switch voice to this device?", "You’re already connected to this voice room on another device. Switching will disconnect that device and connect you here.");

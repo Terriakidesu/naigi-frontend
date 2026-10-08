@@ -1,5 +1,6 @@
+// @vitest-environment jsdom
 import { expect, test } from "vitest";
-import { parseInlineMarkdown, parseMarkdown } from "./markdown";
+import { appendMarkdown, parseInlineMarkdown, parseMarkdown } from "./markdown";
 
 test("markdown parser keeps supported formatting as safe tokens", () => {
   expect(parseInlineMarkdown("**bold** *italic* ~~gone~~ `code` [site](https://example.com)")).toEqual([
@@ -41,4 +42,41 @@ test("markdown parser supports code, quotes, lists, and paragraphs", () => {
     { kind: "unordered-list", value: ["one", "two"] },
     { kind: "code-block", value: "const x = 1;", language: "ts" },
   ]);
+});
+
+test("a message body is not wrapped unless its room spoils everything", () => {
+  const parent = document.createElement("div");
+  const body = appendMarkdown(parent, "hello");
+  expect(parent.querySelector(".block-spoiler")).toBeNull();
+  expect(parent.contains(body)).toBe(true);
+});
+
+test("a spoiler room wraps the whole body and reveals it on demand", () => {
+  const parent = document.createElement("div");
+  const body = appendMarkdown(parent, "the **ending**", { spoilerAll: true });
+  const spoiler = parent.querySelector<HTMLElement>(".block-spoiler");
+  expect(spoiler).not.toBeNull();
+  // Nothing is removed from the document, so revealing is reversible and the text stays selectable.
+  expect(spoiler!.contains(body)).toBe(true);
+  expect(spoiler!.getAttribute("aria-expanded")).toBe("false");
+
+  spoiler!.click();
+  expect(spoiler!.classList.contains("revealed")).toBe(true);
+  expect(spoiler!.getAttribute("aria-expanded")).toBe("true");
+
+  spoiler!.click();
+  expect(spoiler!.classList.contains("revealed")).toBe(false);
+});
+
+test("a spoiler room is operable by keyboard, like an inline spoiler", () => {
+  const parent = document.createElement("div");
+  appendMarkdown(parent, "hidden", { spoilerAll: true });
+  const spoiler = parent.querySelector<HTMLElement>(".block-spoiler")!;
+  expect(spoiler.getAttribute("role")).toBe("button");
+  expect(spoiler.tabIndex).toBe(0);
+
+  spoiler.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+  expect(spoiler.classList.contains("revealed")).toBe(true);
+  spoiler.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true, cancelable: true }));
+  expect(spoiler.classList.contains("revealed")).toBe(true);
 });

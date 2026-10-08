@@ -226,6 +226,19 @@
 .spoiler .inline-twemoji { visibility: hidden; }
 .spoiler.revealed .inline-twemoji { visibility: visible; }
 .spoiler:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/*
+ * A room marked as a spoiler room conceals whole messages, not just the ||spans|| inside them. The
+ * block is laid out normally so revealing does not shift the page, and nothing is removed from the
+ * document, so the text stays selectable once shown.
+ */
+.block-spoiler { margin: 0.15rem 0; border-radius: 6px; cursor: pointer; }
+.block-spoiler > .markdown-body { border-radius: 6px; color: transparent; background: #111214; user-select: none; }
+.block-spoiler:hover > .markdown-body, .block-spoiler:focus-visible > .markdown-body { background: #18191c; }
+.block-spoiler.revealed > .markdown-body { color: inherit; background: transparent; user-select: text; }
+.block-spoiler > .markdown-body .inline-twemoji { visibility: hidden; }
+.block-spoiler.revealed > .markdown-body .inline-twemoji { visibility: visible; }
+.block-spoiler:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .message > .message-content > button { margin-top: 0.55rem; }
 .reply-context { display: flex; grid-column: 1 / -1; align-items: center; gap: 0.4rem; width: min(100%, 620px); max-width: 100%; margin: 0 0 0.35rem; overflow: hidden; padding: 0.38rem 8.5rem 0.38rem 0.55rem; border-left: 3px solid var(--accent); border-radius: 5px; color: var(--text-muted); background: rgba(146, 170, 165, 0.09); font-size: 0.72rem; text-align: left; white-space: nowrap; }
 .reply-context > svg { width: 13px; height: 13px; flex: 0 0 auto; color: var(--accent-text); }

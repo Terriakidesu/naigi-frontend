@@ -101,6 +101,9 @@
  */
 .chat-layout #notification-toggle,
 .chat-layout #lock-button { display: none; }
+/* A blocking warning is a decision, not a glance: it gets the touch targets of the rest. */
+.chat-layout .app-dialog-actions button { min-height: 44px; padding-inline: 1rem; font-size: 0.82rem; }
+.chat-layout .block-spoiler > .markdown-body { min-height: 2.2rem; }
 .chat-layout .chat-header { padding-inline: 0.4rem; }
 .chat-layout .channel-heading { flex: 1 1 auto; min-width: 0; }
 .chat-layout .channel-copy { min-width: 0; }

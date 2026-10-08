@@ -387,6 +387,12 @@
 .channel-kind-badge { flex: 0 0 auto; padding: 0.32rem 0.45rem; border: 1px solid var(--line-soft); border-radius: 999px; color: var(--text-muted); font-size: 0.62rem; font-weight: 750; }
 .settings-list-row button { flex: 0 0 auto; padding: 0.45rem 0.6rem; font-size: 0.68rem; }
 .position-input { flex: 0 0 62px !important; width: 62px !important; padding: 0.5rem !important; font-size: 0.72rem !important; }
+.channel-content-flags { display: flex; flex: 0 1 auto; flex-wrap: wrap; gap: 0.15rem 0.6rem; min-width: 0; }
+.channel-content-flag-option { display: inline-flex; align-items: center; gap: 0.28rem; color: var(--text-muted); font-size: 0.66rem; white-space: nowrap; cursor: pointer; }
+.channel-content-flag-option input { margin: 0; accent-color: var(--accent); }
+.channel-content-flag-option:has(input:disabled) { opacity: 0.45; cursor: default; }
+.channel-content-flag-mark { display: grid; place-items: center; color: var(--text-faint); }
+.channel-content-flag-mark svg { width: 12px; height: 12px; stroke-width: 1.9; }
 .settings-row-copy { min-width: 0; margin-right: auto; }
 .settings-row-copy strong, .settings-row-copy span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .settings-row-copy strong { font-size: 0.74rem; }

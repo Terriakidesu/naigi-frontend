@@ -22,6 +22,11 @@ export type MarkdownRenderOptions = {
   onRoomReference?: (channelId: string) => void;
   resolveMessageLink?: (url: string) => RoomMessageReference | undefined;
   onMessageReference?: (reference: RoomMessageReference) => void;
+  /**
+   * Conceals the whole rendered body until the user reveals it, used when the room spoils everything
+   * by default. Individual `||spoilers||` inside the text still behave as they always have.
+   */
+  spoilerAll?: boolean;
 };
 
 function safeLinkUrl(value: string) {
@@ -412,6 +417,38 @@ export function appendMarkdown(parent: HTMLElement, value: string, options: Mark
     appendInline(paragraph, block.value as string, options, macroState);
     markdown.append(paragraph);
   }
-  parent.append(markdown);
+  if (!options.spoilerAll) {
+    parent.append(markdown);
+    return markdown;
+  }
+  const spoiler = createBlockSpoiler(markdown);
+  parent.append(spoiler);
   return markdown;
+}
+
+/**
+ * Wraps a rendered body so its contents stay hidden until asked for. Nothing is removed from the
+ * page, so revealing is reversible and the text stays selectable afterwards. The wrapper follows the
+ * same accessible pattern as an inline `||spoiler||`: focusable, operable by click or keyboard.
+ */
+function createBlockSpoiler(body: HTMLElement) {
+  const spoiler = document.createElement("div");
+  spoiler.className = "block-spoiler";
+  spoiler.tabIndex = 0;
+  spoiler.setAttribute("role", "button");
+  spoiler.setAttribute("aria-expanded", "false");
+  spoiler.setAttribute("aria-label", "Reveal spoiler");
+  spoiler.append(body);
+  const reveal = () => {
+    const revealed = spoiler.classList.toggle("revealed");
+    spoiler.setAttribute("aria-expanded", String(revealed));
+    spoiler.setAttribute("aria-label", revealed ? "Hide spoiler" : "Reveal spoiler");
+  };
+  spoiler.addEventListener("click", reveal);
+  spoiler.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    reveal();
+  });
+  return spoiler;
 }

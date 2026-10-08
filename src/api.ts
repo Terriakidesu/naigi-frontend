@@ -86,6 +86,10 @@ export type ServerChannel = {
   categoryId: string | null;
   kind: "text" | "voice";
   position: number;
+  /** Room is marked adult content: clients must warn before showing anything in it. */
+  nsfw?: boolean;
+  /** Room spoils everything by default: clients conceal message content until it is revealed. */
+  spoiler?: boolean;
   canView?: boolean;
   canUpload?: boolean;
   canSend?: boolean;
@@ -1231,7 +1235,7 @@ export class ApiClient {
     return this.post<{ channel: ServerChannel }>(`/v1/servers/${serverId}/channels`, { encryptedMetadata, categoryId, kind });
   }
 
-  updateChannel(serverId: string, channelId: string, changes: { encryptedMetadata?: string; position?: number; categoryId?: string | null }) {
+  updateChannel(serverId: string, channelId: string, changes: { encryptedMetadata?: string; position?: number; categoryId?: string | null; nsfw?: boolean; spoiler?: boolean }) {
     return this.patch<{ channel: ServerChannel }>(`/v1/servers/${serverId}/channels/${channelId}`, changes);
   }
 

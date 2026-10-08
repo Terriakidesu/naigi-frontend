@@ -72,6 +72,9 @@
 .channel-item .channel-unread-count { min-width: 1.15rem; padding: 0.13rem 0.32rem; color: var(--accent-text); background: color-mix(in srgb, var(--accent) 20%, var(--bg-sidebar)); font-size: 0.58rem; }
 .channel-muted-indicator { display: grid; place-items: center; flex: 0 0 auto; color: var(--text-faint); }
 .channel-muted-indicator svg { width: 12px; height: 12px; stroke-width: 1.9; }
+/* Shown before a room is opened, so the warning can actually be acted on. */
+.channel-item-nsfw { display: grid; place-items: center; flex: 0 0 auto; color: var(--danger-text); }
+.channel-item-nsfw svg { width: 13px; height: 13px; stroke-width: 1.9; }
 .channel-list-empty { padding: 0.45rem 0.55rem 0.6rem; font-size: 0.7rem; }
 .channel-item:hover .channel-item-icon { color: var(--text); }
 .channel-voice-roster { display: grid; gap: 0.08rem; margin: -0.05rem 0 0.3rem 1.45rem; padding-left: 0.45rem; border-left: 1px solid var(--line-soft); }

@@ -255,6 +255,12 @@
 .report-evidence-choice { align-items: flex-start; color: var(--text); }
 .report-evidence-choice input { margin-top: 0.18rem; }
 .report-dialog .app-dialog-actions { margin-top: 0.25rem; }
+
+/* The adult-content warning: the mark is the loudest thing on screen, on purpose. */
+.nsfw-dialog-mark { display: grid; place-items: center; float: left; width: 34px; height: 34px; margin: 0.1rem 0.7rem 0.2rem 0; border-radius: 10px; color: var(--danger-text); background: color-mix(in srgb, var(--danger) 18%, transparent); }
+.nsfw-dialog-mark svg { width: 19px; height: 19px; }
+.nsfw-dialog h2 { padding-top: 0.1rem; }
+.nsfw-dialog .app-dialog-actions button { min-width: 104px; }
 .external-link-dialog { width: min(480px, calc(100% - 1.5rem)); padding: 1.35rem; }
 .external-link-dialog h2 { display: flex; align-items: center; gap: 0.65rem; }
 .external-link-mark { display: grid; place-items: center; flex: 0 0 34px; width: 34px; height: 34px; border: 1px solid rgba(221, 183, 112, 0.28); border-radius: 10px; color: #e5c17a; background: rgba(221, 183, 112, 0.12); font-size: 1rem; }

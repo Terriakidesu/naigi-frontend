@@ -58,7 +58,8 @@ import { iconElement, renderIcons } from "./icons";
 import { setVoiceDockButton } from "./voice-dock-button";
 import { createSpoilerPreview } from "./media-spoiler-preview";
 import { readSpoilerCache, writeSpoilerCache } from "./media-spoiler-cache";
-import { askText, confirmVoiceDeviceSwitch, showOneTimeToken } from "./ui-dialog";
+import { nsfwConfirmedChannelIds, needsNsfwConfirmation, rememberNsfwConfirmation } from "./content-flags";
+import { askText, confirmNsfwChannel, confirmVoiceDeviceSwitch, showOneTimeToken } from "./ui-dialog";
 import { platform } from "#platform";
 
 const api = new ApiClient();
@@ -113,6 +114,8 @@ let customEmojiObjectUrls: string[] = [];
 let customEmojiHydrationToken = 0;
 const serverLabels = new Map<string, string>();
 const channelLabels = new Map<string, string>();
+/** Room ids whose adult-content warning the user has already passed on this device. */
+let confirmedNsfwChannelIds = new Set<string>();
 const categoryLabels = new Map<string, string>();
 const collapsedCategories = new Set<string>();
 const mutedChannelIds = new Set<string>();
@@ -1628,6 +1631,22 @@ function saveMutedChannels() {
   }
 }
 
+function loadConfirmedNsfwChannels() {
+  confirmedNsfwChannelIds = nsfwConfirmedChannelIds(currentUser?.id);
+}
+
+/**
+ * Resolves true when a room may be opened. A room marked as adult content is not touched at all until
+ * the user continues past the warning, so nothing is fetched, decrypted, or rendered before that.
+ */
+async function passNsfwGate(channel: ServerChannel | undefined) {
+  if (!channel || !needsNsfwConfirmation(channel, confirmedNsfwChannelIds)) return true;
+  if (!await confirmNsfwChannel(channelDisplayName(channel))) return false;
+  rememberNsfwConfirmation(currentUser?.id, channel.id);
+  confirmedNsfwChannelIds.add(channel.id);
+  return true;
+}
+
 function toggleChannelMuted(channelId: string) {
   if (mutedChannelIds.has(channelId)) mutedChannelIds.delete(channelId);
   else mutedChannelIds.add(channelId);
@@ -1867,6 +1886,7 @@ function applyEditedBody(messageId: string, body: string, embeds: SafeEmbed[], m
     onMessageReference: (reference) => void openRoomMessageReference(reference),
     hideBareLinks: embeddedImageLinks(embeds),
     onRoomReference: (channelId) => void selectChannel(channelId),
+    spoilerAll: activeRoomSpoils(),
   });
   for (const embed of embeds) if (!currentSpaceMessageLink(embed.url)) appendSafeEmbed(content, embed, openExternalImageViewer);
   article.classList.toggle("message-emoji-only", isEmojiOnlyMessage(body, customEmojiAssets));
@@ -3791,6 +3811,7 @@ async function startCrypto() {
   }
   loadUnreadMarkers();
   loadMutedChannels();
+  loadConfirmedNsfwChannels();
   loadNotificationPreference();
   void synchronizeFcmPush(api, currentUser.id, appPreferences);
   optimisticDecryptedMessages.clear();
@@ -4060,6 +4081,17 @@ function channelDisplayName(channel: ServerChannel) {
   return channelLabels.get(channel.id) || (channel.position === 0 ? "lobby" : `room-${channel.position + 1}`);
 }
 
+/**
+ * Whether the room on screen spoils everything by default.
+ *
+ * Read from the selected room rather than cached, because the flag arrives with the room list and can
+ * change while the page is open. Everything a message reveals goes through this one place so a spoiler
+ * room cannot conceal some things and not others.
+ */
+function activeRoomSpoils() {
+  return channels.find((channel) => channel.id === selectedChannelId)?.spoiler === true;
+}
+
 function roomMentionSlug(channel: ServerChannel) {
   return roomReferenceSlug(channelDisplayName(channel), `room-${channel.position + 1}`);
 }
@@ -4079,10 +4111,17 @@ function currentSpaceMessageLink(url: string) {
 }
 
 async function openRoomMessageReference(reference: RoomMessageReference) {
-  window.history.pushState(null, "", reference.href);
   try {
-    if (selectedChannelId === reference.channelId) await scrollToMessage(reference.messageId);
-    else await selectChannel(reference.channelId);
+    if (selectedChannelId === reference.channelId) {
+      window.history.pushState(null, "", reference.href);
+      await scrollToMessage(reference.messageId);
+      return;
+    }
+    // Check the warning before the link enters the address bar: a refused warning must not leave the
+    // page pointing at a room that was never opened.
+    if (!await passNsfwGate(channels.find((item) => item.id === reference.channelId))) return;
+    window.history.pushState(null, "", reference.href);
+    await selectChannel(reference.channelId);
   } catch (error) { setStatus(readableError(error), true); }
 }
 
@@ -4332,8 +4371,11 @@ function renderChannels() {
     if (channel.id === selectedChannelId) button.setAttribute("aria-current", "page");
     const channelName = channelDisplayName(channel);
     const muted = mutedChannelIds.has(channel.id);
-    button.title = [channelName, muted ? "Muted on this browser" : "", unread > 0 ? `${unread} unread` : ""].filter(Boolean).join(" · ");
-    button.setAttribute("aria-label", [channelName, muted ? "muted on this browser" : "", unread > 0 ? `${unread} unread messages` : ""].filter(Boolean).join(", "));
+    // The mark is the only warning that can be seen before opening the room, which is the whole point
+    // of asking someone to confirm first.
+    const marked = channel.nsfw === true;
+    button.title = [channelName, marked ? "Adult content" : "", muted ? "Muted on this browser" : "", unread > 0 ? `${unread} unread` : ""].filter(Boolean).join(" · ");
+    button.setAttribute("aria-label", [channelName, marked ? "marked as adult content" : "", muted ? "muted on this browser" : "", unread > 0 ? `${unread} unread messages` : ""].filter(Boolean).join(", "));
     const icon = document.createElement("span");
     icon.className = "channel-item-icon";
     icon.append(iconElement(channel.kind === "voice" ? "headphones" : "hash"));
@@ -4341,6 +4383,14 @@ function renderChannels() {
     name.className = "channel-item-name";
     name.textContent = channelName;
     button.append(icon, name);
+    if (marked) {
+      const mark = document.createElement("span");
+      mark.className = "channel-item-nsfw";
+      mark.title = "Adult content";
+      mark.setAttribute("aria-label", "Adult content");
+      mark.append(iconElement("triangle-alert"));
+      button.append(mark);
+    }
     if (muted) {
       const muteIndicator = document.createElement("span");
       muteIndicator.className = "channel-muted-indicator";
@@ -4774,6 +4824,11 @@ async function selectServer(serverId: string, requestedChannelId?: string) {
     const channel = requested ?? landing ?? channels[0];
     if (channel) {
       await selectChannel(channel.id);
+      if (selectedChannelId !== channel.id) {
+        // The adult-content warning was refused while opening the space. Say so rather than leaving
+        // the heading stuck on "Loading encrypted channels…".
+        renderConversationWelcome("This room is marked as adult content", "Nothing was opened. Choose it from the room list when you want to continue.");
+      }
       void hydrateChannelLabels(serverId, channels.slice(), token);
     }
     else {
@@ -4832,6 +4887,9 @@ async function selectServer(serverId: string, requestedChannelId?: string) {
 async function selectChannel(channelId: string) {
   const channel = channels.find((item) => item.id === channelId);
   if (!channel) return;
+  // Checked here as well so a refused warning leaves the selected room untouched; selectConversation
+  // repeats the check because it is the authoritative one.
+  if (!await passNsfwGate(channel)) return;
   selectedChannelId = channel.id;
   await selectConversation(channel.conversationId, channel);
 }
@@ -5377,11 +5435,14 @@ function clearComposerAttachments() {
 function addComposerFiles(files: File[]) {
   const available = Math.max(0, MAX_COMPOSER_ATTACHMENTS - composerAttachments.length);
   const accepted = files.filter((file) => file.size > 0).slice(0, available);
+  // Anything posted in a spoiler room is marked on the wire, not just in this window: an older client
+  // that does not know about the room still blurs it.
+  const spoilerByDefault = activeRoomSpoils();
   for (const file of accepted) {
     composerAttachments.push({
       id: `attachment-${Date.now()}-${composerAttachmentSequence += 1}`,
       file,
-      spoiler: false,
+      spoiler: spoilerByDefault,
       status: "ready",
       progress: 0,
     });
@@ -5579,6 +5640,10 @@ function rememberDraft(conversationId = selectedConversationId) {
 
 async function selectConversation(conversationId: string, channel?: ServerChannel) {
   if (!cryptoClient) return;
+  // The adult-content gate sits here, on the one path a room takes to being read, so no caller can
+  // open a marked room by going around the room list. Direct messages pass no channel and are never
+  // gated.
+  if (channel && !await passNsfwGate(channel)) return;
   rememberDraft();
   uploadAbortController?.abort();
   stopLocalTyping();
@@ -6079,12 +6144,17 @@ function isVisualMediaContent(content: Record<string, unknown>) {
     && (content.msgtype === "m.image" || content.msgtype === "m.video" || mimeType.startsWith("image/") || mimeType.startsWith("video/"));
 }
 
+/**
+ * Renders one attachment, concealed until revealed when it is a spoiler or when the room spoils
+ * everything by default.
+ */
 function appendEncryptedMedia(
   parent: HTMLElement,
   content: Record<string, unknown>,
   filename: string,
   fileMessage: boolean,
   videoMessage: boolean,
+  roomSpoils = false,
   album?: MediaAlbumInfo,
 ) {
   const info = content.info && typeof content.info === "object" && !Array.isArray(content.info) ? content.info as Record<string, unknown> : {};
@@ -6093,7 +6163,8 @@ function appendEncryptedMedia(
   const isVideo = !isText && (videoMessage || mimeType.toLowerCase().startsWith("video/"));
   const isImage = !isText && !isVideo && (content.msgtype === "m.image" || mimeType.toLowerCase().startsWith("image/"));
   const isVisual = isImage || isVideo;
-  const isSpoiler = content.spoiler === true;
+  // A spoiler room spoils anything posted in it, including files whose own marker is unset.
+  const isSpoiler = content.spoiler === true || roomSpoils;
   const mediaWidth = typeof info.w === "number" && Number.isFinite(info.w) && info.w > 0 ? info.w : undefined;
   const mediaHeight = typeof info.h === "number" && Number.isFinite(info.h) && info.h > 0 ? info.h : undefined;
   const kindLabel = isText ? "text file" : fileMessage ? "file" : isVideo ? "video" : "image";
@@ -6662,6 +6733,7 @@ function renderMessage(
       onMessageReference: (reference) => void openRoomMessageReference(reference),
       hideBareLinks: embeddedImageLinks(effectiveEmbeds),
       onRoomReference: (channelId) => void selectChannel(channelId),
+      spoilerAll: activeRoomSpoils(),
     });
     for (const embed of effectiveEmbeds) if (!currentSpaceMessageLink(embed.url)) appendSafeEmbed(messageContent, embed, openExternalImageViewer);
   }
@@ -6675,6 +6747,7 @@ function renderMessage(
   if (!redactedMessageIds.has(message.id) && mediaMessage) {
     const visualAttachments = mediaAttachments.filter(isVisualMediaContent);
     const otherAttachments = mediaAttachments.filter((attachment) => !isVisualMediaContent(attachment));
+    const roomSpoils = activeRoomSpoils();
     if (visualAttachments.length > 1) {
       const album = document.createElement("div");
       album.className = "media-album";
@@ -6684,7 +6757,7 @@ function renderMessage(
         const filename = typeof attachment.filename === "string" ? attachment.filename : "";
         const tile = document.createElement("div");
         tile.className = "media-album-tile";
-        appendEncryptedMedia(tile, attachment, filename, fileMessage, video);
+        appendEncryptedMedia(tile, attachment, filename, fileMessage, video, roomSpoils);
         album.append(tile);
       }
       messageContent.append(album);
@@ -6693,14 +6766,14 @@ function renderMessage(
         const fileMessage = attachment.msgtype === "m.file";
         const video = attachment.msgtype === "m.video";
         const filename = typeof attachment.filename === "string" ? attachment.filename : "";
-        appendEncryptedMedia(messageContent, attachment, filename, fileMessage, video);
+        appendEncryptedMedia(messageContent, attachment, filename, fileMessage, video, roomSpoils);
       }
     }
     for (const attachment of otherAttachments) {
       const fileMessage = attachment.msgtype === "m.file";
       const video = attachment.msgtype === "m.video";
       const filename = typeof attachment.filename === "string" ? attachment.filename : "";
-      appendEncryptedMedia(messageContent, attachment, filename, fileMessage, video);
+      appendEncryptedMedia(messageContent, attachment, filename, fileMessage, video, roomSpoils);
     }
     if (mediaAlbum && (content.msgtype === "m.image" || content.msgtype === "m.video")) {
       article.dataset.mediaAlbumId = mediaAlbum.id;
@@ -6716,7 +6789,30 @@ function renderMessage(
     replyContext.type = "button";
     replyContext.title = "Jump to replied message";
     const replyLabel = document.createElement("span");
-    replyLabel.textContent = `${reply.sender}: ${formatMessageMacrosAsText(reply.body || "Encrypted message").replace(/\s+/g, " ").slice(0, 180)}`;
+    const replyText = `${reply.sender}: ${formatMessageMacrosAsText(reply.body || "Encrypted message").replace(/\s+/g, " ").slice(0, 180)}`;
+    if (activeRoomSpoils()) {
+      // A quoted message is the room's content too, so it is hidden on exactly the same terms.
+      const concealed = document.createElement("span");
+      concealed.className = "spoiler";
+      concealed.tabIndex = 0;
+      concealed.setAttribute("role", "button");
+      concealed.setAttribute("aria-label", "Reveal spoiler");
+      concealed.textContent = replyText;
+      const reveal = () => concealed.classList.toggle("revealed");
+      concealed.addEventListener("click", (event) => {
+        event.stopPropagation();
+        reveal();
+      });
+      concealed.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        event.stopPropagation();
+        reveal();
+      });
+      replyLabel.append(concealed);
+    } else {
+      replyLabel.textContent = replyText;
+    }
     replyContext.append(iconElement("corner-up-left"), replyLabel);
     renderIcons(replyContext);
     replyContext.addEventListener("click", () => void scrollToMessage(reply.messageId));
@@ -6778,6 +6874,7 @@ function refreshRenderedMessageMarkdown() {
       onMessageReference: (reference) => void openRoomMessageReference(reference),
       hideBareLinks: embeddedImageLinks(embeds),
       onRoomReference: (channelId) => void selectChannel(channelId),
+      spoilerAll: activeRoomSpoils(),
     });
     const nextMarkdown = replacement.firstElementChild;
     if (nextMarkdown) previousMarkdown.replaceWith(nextMarkdown);
