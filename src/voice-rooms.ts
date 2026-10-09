@@ -92,6 +92,7 @@ type VoiceRoomOptions = {
   getVideoQuality?: (source: VoiceVideoSource) => VoiceVideoQuality;
   getScreenAudio?: () => boolean;
   getCameraDeviceId?: () => string;
+  getParticipantName?: (userId: string) => string;
   getAudioInputDeviceId: () => string;
   getAudioOutputDeviceId: () => string;
   getInitialMuted?: () => boolean;
@@ -609,6 +610,10 @@ export class VoiceRoomController {
         this.refreshAudioPreferences();
       },
       getCameraDeviceId: this.options.getCameraDeviceId,
+      getParticipantLabel: (identity) => {
+        const userId = active.participantUserIds.get(identity);
+        return userId ? this.options.getParticipantName?.(userId) ?? "Participant" : "Participant";
+      },
       onChange: (view) => {
         if (!this.isActive(active)) return;
         active.videoView = view;

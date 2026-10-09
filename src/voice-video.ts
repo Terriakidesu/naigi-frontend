@@ -60,6 +60,7 @@ export type VoiceVideoOptions = {
   setScreenVolume?: (identity: string, volume: number) => void;
   /** Camera preference, so a device switch does not silently fall back to the system default. */
   getCameraDeviceId?: () => string;
+  getParticipantLabel?: (identity: string) => string;
 };
 
 const deniedErrorNames = ["NotAllowedError", "PermissionDeniedError", "SecurityError"];
@@ -314,7 +315,7 @@ export class VoiceVideoMixer {
     // it is left alone rather than guessing, because a mirrored desktop webcam looks like a fault.
     element.dataset.mirrored = String(source === "camera" && isUserFacing(track));
     track.attach(element);
-    this.previews.set(source, { element, track, releaseViewer: enableVideoViewer(element, source === "screen" ? "your screen share" : "your camera") });
+    this.previews.set(source, { element, track, releaseViewer: enableVideoViewer(element, "You", undefined, source) });
     const tile = this.options.resolveRemoteContainer({ identity: this.room.localParticipant.identity, source });
     (tile ?? this.options.localPreview).append(element);
   }
@@ -416,11 +417,11 @@ export class VoiceVideoMixer {
     element.dataset.voiceIdentity = participant.identity;
     track.attach(element);
     this.remote.set(publication.trackSid, { element, identity: participant.identity, source, track,
-      releaseViewer: enableVideoViewer(element, `${participant.identity}'s ${source === "screen" ? "screen share" : "camera"}`,
+      releaseViewer: enableVideoViewer(element, () => this.options.getParticipantLabel?.(participant.identity) ?? "Participant",
         source === "screen" && this.options.setScreenVolume ? {
           getVolume: () => this.options.getScreenVolume?.(participant.identity) ?? 1,
           setVolume: (value) => this.options.setScreenVolume?.(participant.identity, value),
-        } : undefined) });
+        } : undefined, source) });
     this.placeRemote();
     this.emit();
   };
@@ -441,6 +442,9 @@ export class VoiceVideoMixer {
       if (preview.element.parentElement !== container) container.append(preview.element);
     }
     for (const entry of this.remote.values()) {
+      const name = this.options.getParticipantLabel?.(entry.identity) ?? "Participant";
+      entry.element.title = `Expand ${name}'s ${entry.source === "screen" ? "screen share" : "camera"}`;
+      entry.element.setAttribute("aria-label", entry.element.title);
       const container = this.options.resolveRemoteContainer({ identity: entry.identity, source: entry.source });
       if (!container) continue;
       wanted.add(entry.element);

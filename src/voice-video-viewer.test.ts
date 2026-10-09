@@ -54,3 +54,30 @@ test("share volume is delegated to the room audio path", () => {
   expect(setVolume).toHaveBeenCalledWith(0);
   release();
 });
+
+test("participant names resolve when opening, and portrait cameras get a narrower viewer", () => {
+  const video = document.createElement("video");
+  Object.defineProperty(video, "videoWidth", { value: 720 });
+  Object.defineProperty(video, "videoHeight", { value: 1280 });
+  let name = "Participant";
+  const release = enableVideoViewer(video, () => name);
+  name = "2nd";
+  video.click();
+  const dialog = document.querySelector<HTMLDialogElement>("dialog")!;
+  expect(dialog.querySelector("strong")!.textContent).toBe("2nd");
+  expect(dialog.dataset.portrait).toBe("true");
+  expect(dialog.querySelector('.voice-video-viewer-close')!.getAttribute("aria-label")).toBe("Close viewer");
+  expect(dialog.textContent).not.toContain("undefined");
+  release();
+});
+
+test("screen sharing stays widescreen even for tall content", () => {
+  const video = document.createElement("video");
+  Object.defineProperty(video, "videoWidth", { value: 720 });
+  Object.defineProperty(video, "videoHeight", { value: 1280 });
+  const release = enableVideoViewer(video, "2nd", undefined, "screen");
+  video.click();
+  expect(document.querySelector<HTMLDialogElement>("dialog")!.dataset.portrait).toBe("false");
+  expect(document.querySelector(".voice-video-viewer-identity")!.textContent).toContain("Screen share");
+  release();
+});

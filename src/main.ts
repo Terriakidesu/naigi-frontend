@@ -867,12 +867,38 @@ function renderVoiceRoomParticipantGrid(state: VoiceRoomView) {
     const label = document.createElement("strong");
     label.className = "voice-room-tile-name";
     label.textContent = name;
+    if (participant.local) {
+      const you = document.createElement("span");
+      you.className = "voice-room-tile-you";
+      you.textContent = "You";
+      label.append(you);
+    }
     const status = document.createElement("span");
     status.className = "voice-room-tile-state";
     status.textContent = participant.local
       ? participant.muted ? "Microphone muted" : participant.speaking ? "Your mic is active" : "You"
       : participant.muted ? "Microphone muted" : participant.speaking ? "Speaking" : "Connected";
-    tile.append(avatar, slot, label, status);
+    const caption = document.createElement("div");
+    caption.className = "voice-room-tile-caption";
+    if (participant.muted) {
+      const mute = document.createElement("span");
+      mute.className = "voice-room-tile-mute";
+      mute.title = "Microphone muted";
+      mute.append(iconElement("mic-off"));
+      caption.append(mute);
+    }
+    const copy = document.createElement("div");
+    copy.className = "voice-room-tile-copy";
+    copy.append(label, status);
+    caption.append(copy);
+    tile.append(avatar, slot, caption);
+    if (participant.camera) {
+      const expand = document.createElement("span");
+      expand.className = "voice-room-tile-expand";
+      expand.setAttribute("aria-hidden", "true");
+      expand.append(iconElement("expand"));
+      tile.append(expand);
+    }
     // A camera speaks for itself once it fills the tile; a share still needs saying, because it is
     // presented away from the participant.
     if (participant.screen) {
@@ -1369,6 +1395,7 @@ function initializeVoiceCalls(userId: string) {
     getVideoQuality: (source) => captureQuality(videoPreferences[source]),
     getScreenAudio: () => videoPreferences.screenAudio,
     getCameraDeviceId: () => videoCameraDeviceId,
+    getParticipantName: (userId) => voiceParticipantName({ userId }, voiceRooms?.currentState.conversationId),
     getAudioInputDeviceId: () => voiceAudioInputDeviceId,
     getAudioOutputDeviceId: () => voiceAudioOutputDeviceId,
     getInitialMuted: () => preferredVoiceMuted,
