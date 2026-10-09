@@ -836,12 +836,20 @@ function renderVoiceRoomParticipantGrid(state: VoiceRoomView) {
     tile.className = "voice-room-participant-tile";
     tile.classList.toggle("is-speaking", Boolean(participant.speaking));
     tile.classList.toggle("is-muted", Boolean(participant.muted));
+    // A camera replaces the avatar outright, so the tile knows it from the room state rather than from
+    // whether a video element happened to land in it.
+    tile.classList.toggle("has-video", Boolean(participant.camera));
     tile.setAttribute("role", "listitem");
     if (participant.userId && !participant.local) bindVoiceUserContextMenu(tile, participant.userId, name);
     const avatar = document.createElement("span");
     avatar.className = "voice-room-tile-avatar";
     renderAvatar(avatar, name, participant.userId ?? participant.identity ?? name, isCurrentUser ? currentUser?.avatarUrl : undefined);
     avatar.setAttribute("aria-hidden", "true");
+    // A participant's camera takes over the tile; the avatar is only the fallback.
+    const slot = document.createElement("span");
+    slot.className = "voice-room-tile-video";
+    slot.dataset.voiceVideoSlot = "camera";
+    slot.dataset.voiceIdentity = participant.identity;
     const label = document.createElement("strong");
     label.className = "voice-room-tile-name";
     label.textContent = name;
@@ -850,27 +858,33 @@ function renderVoiceRoomParticipantGrid(state: VoiceRoomView) {
     status.textContent = participant.local
       ? participant.muted ? "Microphone muted" : participant.speaking ? "Your mic is active" : "You"
       : participant.muted ? "Microphone muted" : participant.speaking ? "Speaking" : "Connected";
-    tile.append(avatar, label, status);
-    // Only show what is actually running. A tile never claims a camera or a share that is not there.
-    const media: string[] = [];
-    if (participant.camera) media.push("camera");
-    if (participant.screen) media.push("sharing their screen");
-    if (media.length > 0) {
-      const marks = document.createElement("span");
-      marks.className = "voice-room-tile-media";
-      for (const [kind, text] of [["camera", "Camera on"], ["screen", "Sharing their screen"]] as const) {
-        if (!media.includes(kind)) continue;
-        const mark = document.createElement("span");
-        mark.className = `voice-room-tile-media-mark is-${kind}`;
-        mark.title = text;
-        mark.setAttribute("aria-label", text);
-        mark.append(iconElement(kind === "camera" ? "video" : "monitor"));
-        marks.append(mark);
-      }
-      tile.append(marks);
+    tile.append(avatar, slot, label, status);
+    // A camera speaks for itself once it fills the tile; a share still needs saying, because it is
+    // presented away from the participant.
+    if (participant.screen) {
+      const mark = document.createElement("span");
+      mark.className = "voice-room-tile-media-mark is-screen";
+      mark.title = "Sharing their screen";
+      mark.setAttribute("aria-label", "Sharing their screen");
+      mark.append(iconElement("monitor"));
+      tile.append(mark);
     }
     voiceRoomParticipantGrid.append(tile);
   }
+  // Tiles are rebuilt from scratch, so live video is re-attached to the new slots.
+  voiceRooms?.syncVideo();
+}
+
+/**
+ * Puts a remote stream where it belongs: a camera into that participant's tile, a screen share into the
+ * share box above the tiles.
+ */
+function resolveVoiceVideoContainer(stream: { identity: string; source: "camera" | "screen" }) {
+  if (stream.source === "screen") return voiceRoomVideo;
+  const slot = voiceRoomParticipantGrid.querySelector<HTMLElement>(
+    `[data-voice-video-slot="camera"][data-voice-identity="${CSS.escape(stream.identity)}"]`,
+  );
+  return slot ?? undefined;
 }
 
 function voiceRoomAudioStatusText(state: VoiceRoomView) {
@@ -1335,6 +1349,7 @@ function initializeVoiceCalls(userId: string) {
     audioOutput: voiceCallAudioOutput,
     videoOutput: voiceRoomVideoOutput,
     localVideoPreview: voiceRoomLocalPreview,
+    resolveVideoContainer: resolveVoiceVideoContainer,
     getAudioInputDeviceId: () => voiceAudioInputDeviceId,
     getAudioOutputDeviceId: () => voiceAudioOutputDeviceId,
     getInitialMuted: () => preferredVoiceMuted,

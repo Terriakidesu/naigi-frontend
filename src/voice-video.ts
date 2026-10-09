@@ -33,13 +33,17 @@ export type VoiceVideoView = { local: VoiceVideoLocalView; remote: VoiceVideoRem
 
 export type VoiceVideoOptions = {
   room: Room;
-  /** Container remote video elements are attached to. */
-  container: HTMLElement;
   /**
    * Container for the local preview. A preview you cannot see is the difference between sharing on
    * purpose and sharing whatever happened to be on screen, so it exists whenever a source is running.
    */
   localPreview: HTMLElement;
+  /**
+   * Where a remote stream belongs right now. Called again after the interface re-renders, because a
+   * participant tile is rebuilt from scratch and would otherwise drop the video attached to it.
+   * Returning undefined keeps the stream alive but off screen.
+   */
+  resolveRemoteContainer: (stream: { identity: string; source: VoiceVideoSource }) => HTMLElement | undefined;
   onChange: (view: VoiceVideoView) => void;
   /** Camera preference, so a device switch does not silently fall back to the system default. */
   getCameraDeviceId?: () => string;
@@ -77,7 +81,12 @@ function isEmbeddedWebView() {
   return /\bwv\b/.test(userAgent) || "NaigiBeta" in window;
 }
 
-type RemoteVideo = { element: HTMLVideoElement; identity: string; source: VoiceVideoSource };
+type RemoteVideo = {
+  element: HTMLVideoElement;
+  identity: string;
+  source: VoiceVideoSource;
+  track: LiveKitTrack;
+};
 
 export class VoiceVideoMixer {
   private readonly options: VoiceVideoOptions;
@@ -297,10 +306,22 @@ export class VoiceVideoMixer {
     element.dataset.voiceVideo = source;
     element.dataset.voiceIdentity = participant.identity;
     track.attach(element);
-    this.remote.set(publication.trackSid, { element, identity: participant.identity, source });
-    this.options.container.append(element);
+    this.remote.set(publication.trackSid, { element, identity: participant.identity, source, track });
+    this.placeRemote();
     this.emit();
   };
+
+  /**
+   * Moves every remote stream into wherever the interface says it belongs now. A camera replaces its
+   * participant's avatar; a screen share goes to the separate share box above the tiles.
+   */
+  placeRemote() {
+    for (const entry of this.remote.values()) {
+      const container = this.options.resolveRemoteContainer({ identity: entry.identity, source: entry.source });
+      if (!container) continue;
+      if (entry.element.parentElement !== container) container.append(entry.element);
+    }
+  }
 
   private readonly handleUnsubscribed = (track: LiveKitTrack, publication: { trackSid: string }) => {
     for (const element of track.detach()) element.remove();
@@ -327,6 +348,18 @@ export class VoiceVideoMixer {
     this.clearLocalPreview();
     for (const entry of this.remote.values()) entry.element.remove();
     this.remote.clear();
+  }
+
+  /**
+   * True when a stream is subscribed for this participant, which is what decides whether their avatar
+   * is replaced. Deliberately independent of where the element ended up: a tile that has not been
+   * rendered yet must not flash the avatar back over a camera that is still running.
+   */
+  hasRemote(identity: string, source: VoiceVideoSource) {
+    for (const entry of this.remote.values()) {
+      if (entry.identity === identity && entry.source === source) return true;
+    }
+    return false;
   }
 }
 

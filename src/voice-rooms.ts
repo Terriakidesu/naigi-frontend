@@ -85,6 +85,8 @@ type VoiceRoomOptions = {
   videoOutput: HTMLElement;
   /** Local preview of whatever the user is publishing. */
   localVideoPreview: HTMLElement;
+  /** Where a remote stream belongs; re-queried after every interface render. */
+  resolveVideoContainer?: (stream: { identity: string; source: "camera" | "screen" }) => HTMLElement | undefined;
   getCameraDeviceId?: () => string;
   getAudioInputDeviceId: () => string;
   getAudioOutputDeviceId: () => string;
@@ -188,6 +190,19 @@ export class VoiceRoomController {
   async switchCamera() {
     if (!this.active?.video) return false;
     return this.active.video.switchCamera();
+  }
+
+  /**
+   * Re-places remote video after the participant list was rebuilt. A tile is created fresh each render,
+   * so without this the camera a participant is sending would vanish behind their avatar.
+   */
+  syncVideo() {
+    this.active?.video?.placeRemote();
+  }
+
+  /** Whether a participant is publishing this source, which is what replaces their avatar. */
+  hasRemoteVideo(identity: string, source: "camera" | "screen") {
+    return this.active?.video?.hasRemote(identity, source) ?? false;
   }
 
   participantsForChannel(channelId: string): VoiceRoomParticipantView[] {
@@ -577,8 +592,8 @@ export class VoiceRoomController {
     active.videoContainer = this.options.videoOutput;
     active.video = new VoiceVideoMixer({
       room,
-      container: this.options.videoOutput,
       localPreview: this.options.localVideoPreview,
+      resolveRemoteContainer: (stream) => this.options.resolveVideoContainer?.(stream),
       onChange: (view) => {
         if (!this.isActive(active)) return;
         active.videoView = view;

@@ -44,11 +44,15 @@ function fakeTrack(kind = Track.Kind.Video, source = Track.Source.Camera) {
 function setup(overrides: Partial<{ e2ee: boolean; screenSupported: boolean }> = {}) {
   const room = new FakeRoom();
   room.isE2EEEnabled = overrides.e2ee ?? true;
-  const container = document.createElement("div");
+  // Stand-ins for the participant tile slot and the separate share box.
+  const cameraSlot = document.createElement("div");
+  const screenSlot = document.createElement("div");
   const localPreview = document.createElement("div");
   const onChange = vi.fn();
-  const mixer = new VoiceVideoMixer({ room: room as never, container, localPreview, onChange });
-  return { room, container, localPreview, onChange, mixer };
+  const resolveRemoteContainer = vi.fn(({ source }: { identity: string; source: "camera" | "screen" }) =>
+    (source === "camera" ? cameraSlot : screenSlot));
+  const mixer = new VoiceVideoMixer({ room: room as never, localPreview, resolveRemoteContainer, onChange });
+  return { room, cameraSlot, screenSlot, localPreview, resolveRemoteContainer, onChange, mixer };
 }
 
 beforeEach(() => {
@@ -153,37 +157,103 @@ test("camera and screen run independently of each other", async () => {
 });
 
 test("remote video is attached on subscribe and removed on unsubscribe", () => {
-  const { room, container, mixer, onChange } = setup();
-  const track = { ...fakeTrack(), attach: vi.fn(), detach: vi.fn(() => [container.firstElementChild as HTMLVideoElement]) };
+  const { room, cameraSlot, mixer, onChange } = setup();
+  const track = { ...fakeTrack(), attach: vi.fn(), detach: vi.fn(() => [...cameraSlot.childNodes]) };
   room.remoteParticipants.set("remote-1", { identity: "remote-1" });
 
   room.fire(RoomEvent.TrackSubscribed, track, { trackSid: "TR_1" }, { identity: "remote-1" });
-  expect(container.childElementCount).toBe(1);
-  expect(container.firstElementChild?.getAttribute("data-voice-video")).toBe("camera");
+  expect(cameraSlot.childElementCount).toBe(1);
+  expect(cameraSlot.firstElementChild?.getAttribute("data-voice-video")).toBe("camera");
   expect(mixer.view.remote).toEqual([{ identity: "remote-1", camera: true, screen: false }]);
 
   room.fire(RoomEvent.TrackUnsubscribed, track, { trackSid: "TR_1" });
-  expect(container.childElementCount).toBe(0);
+  expect(cameraSlot.childElementCount).toBe(0);
   expect(mixer.view.remote).toEqual([{ identity: "remote-1", camera: false, screen: false }]);
   expect(onChange).toHaveBeenCalled();
 });
 
+test("a camera goes into its participant's slot and a share into the separate share box", () => {
+  const { room, cameraSlot, screenSlot, mixer } = setup();
+  const camera = fakeTrack(Track.Kind.Video, Track.Source.Camera);
+  const screen = fakeTrack(Track.Kind.Video, Track.Source.ScreenShare);
+  room.remoteParticipants.set("remote-1", { identity: "remote-1" });
+
+  room.fire(RoomEvent.TrackSubscribed, camera, { trackSid: "TR_C" }, { identity: "remote-1" });
+  room.fire(RoomEvent.TrackSubscribed, screen, { trackSid: "TR_S" }, { identity: "remote-1" });
+
+  expect(cameraSlot.childElementCount).toBe(1);
+  expect(screenSlot.childElementCount).toBe(1);
+  expect(cameraSlot.querySelector("video")?.dataset.voiceVideo).toBe("camera");
+  expect(screenSlot.querySelector("video")?.dataset.voiceVideo).toBe("screen");
+  // One participant, two sources, reported separately.
+  expect(mixer.view.remote).toEqual([{ identity: "remote-1", camera: true, screen: true }]);
+});
+
+test("video is re-placed when the interface re-renders and its tile is rebuilt", () => {
+  const room = new FakeRoom();
+  const firstSlot = document.createElement("div");
+  const localPreview = document.createElement("div");
+  let slot = firstSlot;
+  const onChange = vi.fn();
+  const mixer = new VoiceVideoMixer({
+    room: room as never,
+    localPreview,
+    resolveRemoteContainer: () => slot,
+    onChange,
+  });
+  const track = fakeTrack();
+  room.fire(RoomEvent.TrackSubscribed, track, { trackSid: "TR_1" }, { identity: "remote-1" });
+  expect(firstSlot.childElementCount).toBe(1);
+
+  // The grid render replaces the tile, so the element is gone until it is placed again.
+  const rebuilt = document.createElement("div");
+  slot = rebuilt;
+  mixer.placeRemote();
+  expect(rebuilt.childElementCount).toBe(1);
+  expect(firstSlot.childElementCount).toBe(0);
+});
+
+test("a stream with nowhere to go stays alive rather than being dropped", () => {
+  const room = new FakeRoom();
+  const onChange = vi.fn();
+  const mixer = new VoiceVideoMixer({
+    room: room as never,
+    localPreview: document.createElement("div"),
+    // A participant whose tile is not on screen yet.
+    resolveRemoteContainer: () => undefined,
+    onChange,
+  });
+  room.fire(RoomEvent.TrackSubscribed, fakeTrack(), { trackSid: "TR_1" }, { identity: "remote-1" });
+  // It is still the room's state that matters: the avatar must not reappear over a live camera.
+  expect(mixer.hasRemote("remote-1", "camera")).toBe(true);
+  expect(mixer.view.remote).toEqual([{ identity: "remote-1", camera: true, screen: false }]);
+});
+
+test("a subscribed camera is what replaces the avatar, a share is not", () => {
+  const { room, mixer } = setup();
+  room.fire(RoomEvent.TrackSubscribed, fakeTrack(), { trackSid: "TR_1" }, { identity: "remote-1" });
+  expect(mixer.hasRemote("remote-1", "camera")).toBe(true);
+  // A share is presented away from the participant, so it never stands in for them.
+  expect(mixer.hasRemote("remote-1", "screen")).toBe(false);
+});
+
 test("audio tracks are left to the audio path", () => {
-  const { room, container } = setup();
+  const { room, cameraSlot, screenSlot } = setup();
   room.fire(RoomEvent.TrackSubscribed, fakeTrack(Track.Kind.Audio), { trackSid: "TR_2" }, { identity: "remote-1" });
-  expect(container.childElementCount).toBe(0);
+  expect(cameraSlot.childElementCount).toBe(0);
+  expect(screenSlot.childElementCount).toBe(0);
 });
 
 test("disposing releases the camera, detaches video, and unsubscribes", async () => {
   const track = fakeTrack();
   capture.video.mockResolvedValue(track);
-  const { room, container, mixer } = setup();
+  const { room, cameraSlot, mixer } = setup();
   await mixer.startCamera();
   room.fire(RoomEvent.TrackSubscribed, fakeTrack(), { trackSid: "TR_3" }, { identity: "remote-2" });
 
   await mixer.dispose();
   expect(track.stop).toHaveBeenCalled();
-  expect(container.childElementCount).toBe(0);
+  expect(cameraSlot.childElementCount).toBe(0);
   expect(room.count(RoomEvent.TrackSubscribed)).toBe(0);
   // A late event after teardown must not resurrect anything.
   expect(mixer.view.local.camera).toBe(false);
