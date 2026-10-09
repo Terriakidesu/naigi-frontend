@@ -56,6 +56,7 @@ import { isPlaintextAttachment, readTextPreview, textLanguage, textPreviewExcerp
 import { confirmLocalUnlock, lockLocalSession, resolveLocalPassphrase } from "./unlock-vault";
 import { iconElement, renderIcons } from "./icons";
 import { setVoiceDockButton } from "./voice-dock-button";
+import { customDropdown } from "./custom-dropdown";
 import { createSpoilerPreview } from "./media-spoiler-preview";
 import { readSpoilerCache, writeSpoilerCache } from "./media-spoiler-cache";
 import { nsfwConfirmedChannelIds, needsNsfwConfirmation, rememberNsfwConfirmation } from "./content-flags";
@@ -340,6 +341,7 @@ const voiceRoomCameraDevice = byId<HTMLSelectElement>("voice-room-camera-device"
 const voiceRoomScreenResolution = byId<HTMLSelectElement>("voice-room-screen-resolution");
 const voiceRoomScreenFps = byId<HTMLSelectElement>("voice-room-screen-fps");
 const voiceRoomScreenAudio = byId<HTMLInputElement>("voice-room-screen-audio");
+const videoDropdowns = [voiceRoomCameraDevice, voiceRoomVideoQuality, voiceRoomCameraFps, voiceRoomScreenResolution, voiceRoomScreenFps].map(customDropdown);
 const voiceRoomControls = byId<HTMLElement>("voice-room-controls");
 const voiceRoomMute = byId<HTMLButtonElement>("voice-room-mute");
 const voiceRoomDeafen = byId<HTMLButtonElement>("voice-room-deafen");
@@ -8218,6 +8220,7 @@ function renderVoiceVideoQualityOptions() {
   voiceRoomScreenResolution.value = String(videoPreferences.screen.height);
   voiceRoomScreenFps.value = String(videoPreferences.screen.frameRate);
   voiceRoomScreenAudio.checked = videoPreferences.screenAudio;
+  for (const dropdown of videoDropdowns) dropdown.refresh();
 }
 
 for (const control of [voiceRoomVideoQuality, voiceRoomCameraFps, voiceRoomScreenResolution, voiceRoomScreenFps, voiceRoomScreenAudio]) {
@@ -8231,7 +8234,10 @@ for (const control of [voiceRoomVideoQuality, voiceRoomCameraFps, voiceRoomScree
   });
 }
 voiceRoomCameraDevice.closest("details")?.addEventListener("toggle", () => {
-  if (!voiceRoomCameraDevice.closest("details")?.open) return;
+  if (!voiceRoomCameraDevice.closest("details")?.open) {
+    for (const dropdown of videoDropdowns) dropdown.close();
+    return;
+  }
   // Enumeration does not request camera access. Labels appear after permission is granted.
   void navigator.mediaDevices?.enumerateDevices().then((devices) => {
     voiceRoomCameraDevice.replaceChildren(new Option("System default", ""));
@@ -8239,6 +8245,7 @@ voiceRoomCameraDevice.closest("details")?.addEventListener("toggle", () => {
       voiceRoomCameraDevice.add(new Option(device.label || `Camera ${index + 1}`, device.deviceId));
     });
     voiceRoomCameraDevice.value = videoCameraDeviceId;
+    for (const dropdown of videoDropdowns) dropdown.refresh();
   }).catch(() => { setStatus("Camera devices could not be listed. You can still use the system default."); });
 });
 voiceRoomCameraDevice.addEventListener("change", () => {
@@ -8253,6 +8260,7 @@ byId<HTMLButtonElement>("voice-room-video-settings-close").addEventListener("cli
   const settings = voiceRoomCameraDevice.closest("details");
   if (!settings) return;
   settings.open = false;
+  for (const dropdown of videoDropdowns) dropdown.close();
   settings.querySelector("summary")?.focus();
 });
 const setVoicePushToTalk = (pressed: boolean) => {

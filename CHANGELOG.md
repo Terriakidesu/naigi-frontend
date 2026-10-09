@@ -10,7 +10,7 @@
 
 ## Releases
 
-- [0.5.x](docs/changelogs/0.5.md) — latest: 0.5.0 (2026-10-09)
+- [0.5.x](docs/changelogs/0.5.md) — latest: 0.5.1 (2026-10-09)
 
 - [0.2.x](docs/changelogs/0.2.md) — latest: 0.2.0 (2026-10-01)
 - [0.1.x](docs/changelogs/0.1.md) — latest: 0.1.3 (2026-10-01)
