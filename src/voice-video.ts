@@ -116,6 +116,7 @@ export class VoiceVideoMixer {
   private readonly previews = new Map<VoiceVideoSource, { element: HTMLVideoElement; track: LocalVideoTrack; releaseViewer: () => void }>();
   private lastScreenShareBox?: HTMLElement;
   private stopped = false;
+  private switchingCamera?: Promise<boolean>;
 
   constructor(options: VoiceVideoOptions) {
     this.options = options;
@@ -217,9 +218,7 @@ export class VoiceVideoMixer {
         this.screenTrack = track;
         this.screenAudioTrack = tracks.find((candidate) => candidate.kind === Track.Kind.Audio);
       }
-      track.mediaStreamTrack.addEventListener?.("ended", () => {
-        if ((source === "camera" ? this.cameraTrack : this.screenTrack) === track) void this.stop(source);
-      }, { once: true });
+      this.watchLocalEnd(track, source);
       this.showLocalPreview(track, source);
       this.issue = undefined;
       this.emit();
@@ -249,6 +248,13 @@ export class VoiceVideoMixer {
     // A browser only allows capture in a secure context; naming it beats a bare "failed".
     if (typeof window !== "undefined" && !window.isSecureContext) return "insecure";
     return "failed";
+  }
+
+  private watchLocalEnd(track: LocalVideoTrack, source: VoiceVideoSource) {
+    const mediaTrack = track.mediaStreamTrack;
+    mediaTrack.addEventListener?.("ended", () => {
+      if ((source === "camera" ? this.cameraTrack : this.screenTrack) === track && track.mediaStreamTrack === mediaTrack) void this.stop(source);
+    }, { once: true });
   }
 
   private async capture(source: VoiceVideoSource): Promise<LocalTrack[]> {
@@ -322,53 +328,72 @@ export class VoiceVideoMixer {
     this.previews.delete(source);
   }
 
-  /** Move to the next camera, keeping the current one running if the switch fails. */
-  async switchCamera(deviceId?: string): Promise<boolean> {
+  /** Restart the existing publication: phones often cannot open front and rear simultaneously. */
+  switchCamera(deviceId?: string): Promise<boolean> {
+    if (this.switchingCamera) return this.switchingCamera;
+    const attempt = this.restartCamera(deviceId).finally(() => { this.switchingCamera = undefined; });
+    this.switchingCamera = attempt;
+    return attempt;
+  }
+
+  private async restartCamera(deviceId?: string): Promise<boolean> {
     if (!this.cameraTrack) return false;
     const previous = this.cameraTrack;
     const generation = ++this.generations.camera;
-    let replacement: LocalVideoTrack | undefined;
+    const cancelled = () => this.stopped || generation !== this.generations.camera || this.cameraTrack !== previous;
+    const settings = previous.mediaStreamTrack.getSettings();
+    const restore = settings.deviceId ? { deviceId: { exact: settings.deviceId } }
+      : settings.facingMode === "environment" ? { facingMode: "environment" as const } : { facingMode: "user" as const };
     const quality = this.options.getQuality?.("camera") ?? defaultVoiceVideoQuality;
+    let restarted = false;
     try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const cameras = devices.filter((device) => device.kind === "videoinput");
-      if (!deviceId && cameras.length < 2) return false;
-      const currentId = this.cameraTrack.mediaStreamTrack.getSettings().deviceId;
-      const index = cameras.findIndex((device) => device.deviceId === currentId);
-      const next = deviceId ? cameras.find((device) => device.deviceId === deviceId) : cameras[(index + 1 + cameras.length) % cameras.length];
-      if (!next) return false;
-      replacement = await createLocalVideoTrack({
-        deviceId: { exact: next.deviceId },
+      let target: { deviceId?: { exact: string }; facingMode?: "user" | "environment" };
+      if (deviceId) target = { deviceId: { exact: deviceId } };
+      else if (settings.facingMode === "user" || settings.facingMode === "environment") {
+        target = { facingMode: settings.facingMode === "user" ? "environment" : "user" };
+      } else {
+        const cameras = (await navigator.mediaDevices.enumerateDevices()).filter((device) => device.kind === "videoinput" && device.deviceId);
+        if (cameras.length < 2) return false;
+        const index = cameras.findIndex((device) => device.deviceId === settings.deviceId);
+        target = { deviceId: { exact: cameras[(index + 1 + cameras.length) % cameras.length].deviceId } };
+      }
+      if (cancelled()) return false;
+      if (!this.room.isE2EEEnabled) throw new Error("voice_media_encryption_unavailable");
+      restarted = true;
+      await previous.restartTrack({
+        ...target,
         resolution: {
           width: quality.width,
           height: quality.height,
           frameRate: quality.frameRate,
         },
       });
-      if (this.stopped || generation !== this.generations.camera) throw new Error("capture_cancelled");
-      if (!this.room.isE2EEEnabled) throw new Error("voice_media_encryption_unavailable");
-      await this.room.localParticipant.publishTrack(replacement);
-      if (this.stopped || generation !== this.generations.camera) throw new Error("capture_cancelled");
-      this.cameraTrack = replacement;
-      const switchedTrack = replacement;
-      replacement.mediaStreamTrack.addEventListener?.("ended", () => {
-        if (this.cameraTrack === switchedTrack) void this.stop("camera");
-      }, { once: true });
-      try {
-        await this.room.localParticipant.unpublishTrack(previous);
-      } catch {
-        // Already gone.
+      if (cancelled()) { previous.stop(); return false; }
+      if (!this.room.isE2EEEnabled) {
+        this.issue = "encryption";
+        await this.stop("camera");
+        return false;
       }
-      previous.stop();
-      this.showLocalPreview(replacement, "camera");
+      const facing = previous.mediaStreamTrack.getSettings().facingMode;
+      if (target.facingMode && facing && facing !== target.facingMode) throw new Error("camera_switch_unavailable");
+      this.watchLocalEnd(previous, "camera");
+      this.showLocalPreview(previous, "camera");
+      this.issue = undefined;
       this.emit();
       return true;
     } catch (error) {
-      if (replacement) {
-        replacement.stop();
-        try { await this.room.localParticipant.unpublishTrack(replacement); } catch { /* Disconnected. */ }
+      if (cancelled()) { previous.stop(); return false; }
+      if (restarted && this.room.isE2EEEnabled) {
+        try {
+          await previous.restartTrack({ ...restore, resolution: { width: quality.width, height: quality.height, frameRate: quality.frameRate } });
+          if (cancelled()) { previous.stop(); return false; }
+          this.watchLocalEnd(previous, "camera");
+          this.showLocalPreview(previous, "camera");
+        } catch {
+          if (!cancelled()) await this.stop("camera");
+        }
       }
-      if (this.stopped || generation !== this.generations.camera) return false;
+      if (this.stopped) return false;
       this.issue = this.issueFor(error);
       this.emit();
       return false;

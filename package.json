@@ -1,6 +1,6 @@
 {
   "name": "naigi-frontend",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "private": true,
   "type": "module",
   "description": "Shared Naigi web and desktop user interface",

@@ -37,6 +37,7 @@ function fakeTrack(kind = Track.Kind.Video, source = Track.Source.Camera) {
     stop: vi.fn(),
     attach: vi.fn(),
     detach: vi.fn(() => []),
+    restartTrack: vi.fn().mockResolvedValue(undefined),
     mediaStreamTrack: { getSettings: () => ({ deviceId: "cam-1" }) },
   };
 }
@@ -440,14 +441,12 @@ test("stopping removes the preview so nothing stale is left on screen", async ()
   expect(cameraSlot.childElementCount).toBe(0);
 });
 
-test("switching cameras moves the preview to the new track", async () => {
+test("switching cameras restarts the existing publication instead of opening a second camera", async () => {
   const first = fakeTrack();
   capture.video.mockResolvedValue(first);
-  const { cameraSlot, mixer } = setup();
+  const { room, cameraSlot, mixer } = setup();
   await mixer.startCamera();
 
-  const second = fakeTrack();
-  capture.video.mockResolvedValue(second);
   Object.defineProperty(navigator.mediaDevices, "enumerateDevices", {
     configurable: true,
     value: vi.fn().mockResolvedValue([
@@ -458,8 +457,65 @@ test("switching cameras moves the preview to the new track", async () => {
 
   expect(await mixer.switchCamera()).toBe(true);
   expect(cameraSlot.childElementCount).toBe(1);
-  expect(second.attach).toHaveBeenCalled();
-  expect(first.stop).toHaveBeenCalled();
+  expect(first.restartTrack).toHaveBeenCalledWith(expect.objectContaining({ deviceId: { exact: "cam-2" } }));
+  expect(capture.video).toHaveBeenCalledTimes(1);
+  expect(room.localParticipant.publishTrack).toHaveBeenCalledTimes(1);
+  expect(room.localParticipant.unpublishTrack).not.toHaveBeenCalled();
+});
+
+test("front/back switching uses facingMode even if only one device is enumerated", async () => {
+  let facingMode = "user";
+  const track = fakeTrack();
+  track.mediaStreamTrack.getSettings = () => ({ deviceId: "cam-1", facingMode });
+  track.restartTrack.mockImplementation(async (options: { facingMode?: string }) => { facingMode = options.facingMode!; });
+  capture.video.mockResolvedValue(track);
+  const { mixer } = setup();
+  await mixer.startCamera();
+  expect(await mixer.switchCamera()).toBe(true);
+  expect(track.restartTrack).toHaveBeenLastCalledWith(expect.objectContaining({ facingMode: "environment" }));
+  expect(await mixer.switchCamera()).toBe(true);
+  expect(track.restartTrack).toHaveBeenLastCalledWith(expect.objectContaining({ facingMode: "user" }));
+});
+
+test("a failed switch attempts to restore the original camera", async () => {
+  const track = fakeTrack();
+  track.restartTrack.mockRejectedValueOnce(new Error("camera busy")).mockResolvedValueOnce(undefined);
+  capture.video.mockResolvedValue(track);
+  const { mixer } = setup();
+  await mixer.startCamera();
+  expect(await mixer.switchCamera("rear")).toBe(false);
+  expect(track.restartTrack).toHaveBeenLastCalledWith(expect.objectContaining({ deviceId: { exact: "cam-1" } }));
+  expect(mixer.view.local.camera).toBe(true);
+});
+
+test("stopping during a camera restart releases the late capture", async () => {
+  const track = fakeTrack();
+  let resolve!: () => void;
+  track.restartTrack.mockReturnValue(new Promise<void>((done) => { resolve = done; }));
+  capture.video.mockResolvedValue(track);
+  const { mixer, cameraSlot } = setup();
+  await mixer.startCamera();
+  const switching = mixer.switchCamera("rear");
+  await mixer.stop("camera");
+  resolve();
+  expect(await switching).toBe(false);
+  expect(track.stop).toHaveBeenCalled();
+  expect(cameraSlot.childElementCount).toBe(0);
+});
+
+test("repeated flip taps share one camera restart", async () => {
+  const track = fakeTrack();
+  let resolve!: () => void;
+  track.restartTrack.mockReturnValue(new Promise<void>((done) => { resolve = done; }));
+  capture.video.mockResolvedValue(track);
+  const { mixer } = setup();
+  await mixer.startCamera();
+  const first = mixer.switchCamera("rear");
+  const second = mixer.switchCamera("rear");
+  expect(track.restartTrack).toHaveBeenCalledTimes(1);
+  resolve();
+  expect(await first).toBe(true);
+  expect(await second).toBe(true);
 });
 
 test("disposing releases the local preview", async () => {

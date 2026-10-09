@@ -8203,7 +8203,7 @@ voiceRoomSharingStop.addEventListener("click", () => {
 voiceRoomCameraSwitchButton.addEventListener("click", () => {
   if (!voiceRooms) return;
   void voiceRooms.switchCamera().then((switched) => {
-    if (!switched) setStatus("No other camera is available on this device.", true);
+    if (!switched) setStatus("Could not switch cameras. Try choosing a camera in Video settings.", true);
   });
 });
 
@@ -8253,7 +8253,7 @@ voiceRoomCameraDevice.addEventListener("change", () => {
   videoCameraDeviceId = voiceRoomCameraDevice.value;
   if (videoCameraDeviceId && voiceRooms?.currentState.video?.local.camera) {
     void voiceRooms.switchCamera(videoCameraDeviceId).then((changed) => {
-      if (!changed) setStatus("Could not switch cameras. The current camera was kept running.", true);
+      if (!changed) setStatus("Could not switch cameras. Check camera access or try another device.", true);
     });
   }
 });
