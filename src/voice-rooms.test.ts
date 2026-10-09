@@ -60,6 +60,7 @@ function setup() {
     onState: vi.fn(),
     audioOutput: document.createElement("div"),
     videoOutput: document.createElement("div"),
+    localVideoPreview: document.createElement("div"),
     getAudioInputDeviceId: () => "",
     getAudioOutputDeviceId: () => "",
   };

@@ -83,6 +83,8 @@ type VoiceRoomOptions = {
   audioOutput: HTMLElement;
   /** Remote camera and screen-share video elements are attached here. */
   videoOutput: HTMLElement;
+  /** Local preview of whatever the user is publishing. */
+  localVideoPreview: HTMLElement;
   getCameraDeviceId?: () => string;
   getAudioInputDeviceId: () => string;
   getAudioOutputDeviceId: () => string;
@@ -576,6 +578,7 @@ export class VoiceRoomController {
     active.video = new VoiceVideoMixer({
       room,
       container: this.options.videoOutput,
+      localPreview: this.options.localVideoPreview,
       onChange: (view) => {
         if (!this.isActive(active)) return;
         active.videoView = view;
@@ -700,6 +703,7 @@ export class VoiceRoomController {
     active.video = undefined;
     active.videoView = undefined;
     active.videoContainer?.replaceChildren();
+    this.options.localVideoPreview.replaceChildren();
     this.emitState();
     try {
       await active.room?.disconnect();

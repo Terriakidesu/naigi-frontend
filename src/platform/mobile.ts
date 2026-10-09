@@ -1,13 +1,19 @@
-import type { PlatformAdapter } from "./types";
+import type { PermissionOutcome, PlatformAdapter } from "./types";
 import { clientVersion } from "./version";
 
 export type MobileBuild = { app?: string; frontend?: string } | null;
+
+export type MobilePermissionResult = { granted?: boolean; blocked?: boolean };
 
 export type MobileBridge = {
   platform?: string;
   build?: MobileBuild;
   /** Server the user selected; the app shell owns the picker and stores it. */
   serverOrigin?: string;
+  permissions?: {
+    available?: boolean;
+    request(alias: string): Promise<MobilePermissionResult>;
+  };
 };
 
 declare global {
@@ -58,6 +64,22 @@ export function createMobileAdapter(bridge: () => MobileBridge = mobileBridge): 
       const url = new URL("/v1/realtime", normalizeServerOrigin(bridge().serverOrigin));
       url.protocol = "wss:";
       return url.href;
+    },
+    /**
+     * The WebView will not open a camera the app itself has not been granted, so the native permission
+     * has to come first. Requesting it here is what makes the camera work inside the app at all.
+     */
+    async requestPermission(name: "camera" | "microphone") {
+      const permissions = bridge().permissions;
+      if (!permissions?.available) return "unavailable";
+      try {
+        const result = await permissions.request(name);
+        if (result.granted === true) return "granted";
+        // Blocked means the user chose "don't ask again", which needs system settings, not a retry.
+        return result.blocked === true ? "blocked" : "denied";
+      } catch {
+        return "denied";
+      }
     },
   };
 }

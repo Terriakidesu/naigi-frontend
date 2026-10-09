@@ -45,9 +45,10 @@ function setup(overrides: Partial<{ e2ee: boolean; screenSupported: boolean }> =
   const room = new FakeRoom();
   room.isE2EEEnabled = overrides.e2ee ?? true;
   const container = document.createElement("div");
+  const localPreview = document.createElement("div");
   const onChange = vi.fn();
-  const mixer = new VoiceVideoMixer({ room: room as never, container, onChange });
-  return { room, container, onChange, mixer };
+  const mixer = new VoiceVideoMixer({ room: room as never, container, localPreview, onChange });
+  return { room, container, localPreview, onChange, mixer };
 }
 
 beforeEach(() => {
@@ -192,4 +193,70 @@ test("disposing twice is safe", async () => {
   const { mixer } = setup();
   await mixer.dispose();
   await expect(mixer.dispose()).resolves.toBeUndefined();
+});
+
+test("a running source is previewed locally and muted, so nothing echoes back", async () => {
+  const track = fakeTrack();
+  capture.video.mockResolvedValue(track);
+  const { localPreview, mixer } = setup();
+
+  await mixer.startCamera();
+  const preview = localPreview.firstElementChild as HTMLVideoElement | null;
+  expect(preview).not.toBeNull();
+  expect(preview!.muted).toBe(true);
+  expect(preview!.dataset.voiceVideoSource).toBe("camera");
+  expect(track.attach).toHaveBeenCalledWith(preview);
+});
+
+test("a shared screen is previewed unmirrored and labelled as a share", async () => {
+  const track = fakeTrack(Track.Kind.Video, Track.Source.ScreenShare);
+  capture.screen.mockResolvedValue([track]);
+  const { localPreview, mixer } = setup();
+
+  await mixer.startScreen();
+  const preview = localPreview.firstElementChild as HTMLVideoElement | null;
+  expect(preview!.dataset.voiceVideoSource).toBe("screen");
+  // The preview is for the sharer only: it is never published, and never sent back.
+  expect(preview!.dataset.voiceVideo).toBe("local");
+});
+
+test("stopping removes the preview so nothing stale is left on screen", async () => {
+  capture.video.mockResolvedValue(fakeTrack());
+  const { localPreview, mixer } = setup();
+  await mixer.startCamera();
+  expect(localPreview.childElementCount).toBe(1);
+
+  await mixer.stop("camera");
+  expect(localPreview.childElementCount).toBe(0);
+});
+
+test("switching cameras moves the preview to the new track", async () => {
+  const first = fakeTrack();
+  capture.video.mockResolvedValue(first);
+  const { localPreview, mixer } = setup();
+  await mixer.startCamera();
+
+  const second = fakeTrack();
+  capture.video.mockResolvedValue(second);
+  Object.defineProperty(navigator.mediaDevices, "enumerateDevices", {
+    configurable: true,
+    value: vi.fn().mockResolvedValue([
+      { kind: "videoinput", deviceId: "cam-1" },
+      { kind: "videoinput", deviceId: "cam-2" },
+    ]),
+  });
+
+  expect(await mixer.switchCamera()).toBe(true);
+  expect(localPreview.childElementCount).toBe(1);
+  expect(second.attach).toHaveBeenCalled();
+  expect(first.stop).toHaveBeenCalled();
+});
+
+test("disposing releases the local preview", async () => {
+  capture.video.mockResolvedValue(fakeTrack());
+  const { localPreview, mixer } = setup();
+  await mixer.startCamera();
+
+  await mixer.dispose();
+  expect(localPreview.childElementCount).toBe(0);
 });

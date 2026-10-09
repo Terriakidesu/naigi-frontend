@@ -141,6 +141,11 @@
 .chat-layout .voice-device-control-video .voice-dock-button { width: 44px; height: 44px; flex-basis: 44px; }
 .chat-layout .voice-room-tile-media-mark { padding: 0.24rem 0.4rem; }
 .chat-layout .voice-room-tile-media-mark svg { width: 13px; height: 13px; }
+/* The preview must not cover the dock it sits above, so it is smaller and pinned tighter. */
+.chat-layout .voice-room-local-preview { right: 0.5rem; bottom: 0.5rem; }
+.chat-layout .voice-room-local-preview > video { width: min(34vw, 132px); max-height: 18vh; }
+.chat-layout .voice-room-local-preview > video.is-screen { width: min(46vw, 190px); }
+.chat-layout .voice-room-sharing-banner .voice-dock-button { min-width: 92px; min-height: 44px; }
 
 /*
  * Touch devices have no hover, so hover-only affordances must not gate actions.

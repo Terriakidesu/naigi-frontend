@@ -321,6 +321,10 @@ const voiceRoomJoinLabel = byId<HTMLElement>("voice-room-join-label");
 const voiceRoomAudioStatus = byId<HTMLElement>("voice-room-audio-status");
 const voiceRoomParticipantGrid = byId<HTMLElement>("voice-room-participant-grid");
 const voiceRoomVideo = byId<HTMLElement>("voice-room-video");
+const voiceRoomLocalPreview = byId<HTMLElement>("voice-room-local-preview");
+const voiceRoomSharingBanner = byId<HTMLElement>("voice-room-sharing-banner");
+const voiceRoomSharingTitle = byId<HTMLElement>("voice-room-sharing-title");
+const voiceRoomSharingStop = byId<HTMLButtonElement>("voice-room-sharing-stop");
 const voiceRoomCameraButton = byId<HTMLButtonElement>("voice-room-camera");
 const voiceRoomCameraSwitchButton = byId<HTMLButtonElement>("voice-room-camera-switch");
 const voiceRoomScreenShareButton = byId<HTMLButtonElement>("voice-room-screen-share");
@@ -1225,6 +1229,15 @@ function renderVoiceRoomVideoControls(state: VoiceRoomView, connected: boolean) 
     voiceRoomScreenShareButton.disabled = !screenOn;
   }
   voiceRoomVideo.hidden = voiceRoomVideo.childElementCount === 0;
+  voiceRoomLocalPreview.hidden = voiceRoomLocalPreview.childElementCount === 0;
+
+  // A persistent banner, not just a highlighted button: sharing is easy to forget you are doing.
+  const sharing = screenOn || cameraOn;
+  voiceRoomSharingBanner.hidden = !sharing;
+  if (sharing) {
+    voiceRoomSharingTitle.textContent = screenOn ? "You are sharing your screen" : "Your camera is on";
+    setVoiceDockButton(voiceRoomSharingStop, true, "phone-off", screenOn ? "Stop sharing your screen" : "Turn camera off", false, false);
+  }
 }
 
 async function voiceConversationMembers(conversationId: string) {
@@ -1321,6 +1334,7 @@ function initializeVoiceCalls(userId: string) {
     onAccessRevoked: clearVoiceRoomResume,
     audioOutput: voiceCallAudioOutput,
     videoOutput: voiceRoomVideoOutput,
+    localVideoPreview: voiceRoomLocalPreview,
     getAudioInputDeviceId: () => voiceAudioInputDeviceId,
     getAudioOutputDeviceId: () => voiceAudioOutputDeviceId,
     getInitialMuted: () => preferredVoiceMuted,
@@ -8104,6 +8118,17 @@ async function toggleVoiceVideo(source: "camera" | "screen") {
   if (!voiceRooms) return;
   const state = voiceRooms.currentState;
   const active = source === "camera" ? Boolean(state.video?.local.camera) : Boolean(state.video?.local.screen);
+  if (!active && source === "camera") {
+    // The platform grant comes first: inside the app the WebView cannot open a camera the app itself
+    // has not been given, and asking only the browser leaves the request silently denied.
+    const outcome = await platform.requestPermission?.("camera");
+    if (outcome === "denied" || outcome === "blocked") {
+      setStatus(outcome === "blocked"
+        ? "Camera access is blocked. Turn it on for Naigi in system settings."
+        : "Camera permission was refused, so the camera was not started.", true);
+      return;
+    }
+  }
   const started = active ? await voiceRooms.stopVideo(source) : await voiceRooms.startVideo(source);
   if (active) {
     if (started) setStatus(source === "camera" ? "Camera off." : "Stopped sharing your screen.");
@@ -8130,6 +8155,11 @@ function videoIssueText(source: "camera" | "screen", issue?: string) {
 
 voiceRoomCameraButton.addEventListener("click", () => void toggleVoiceVideo("camera"));
 voiceRoomScreenShareButton.addEventListener("click", () => void toggleVoiceVideo("screen"));
+voiceRoomSharingStop.addEventListener("click", () => {
+  const state = voiceRooms?.currentState;
+  // The banner stops whatever is actually running, whichever source that is.
+  void toggleVoiceVideo(state?.video?.local.screen ? "screen" : "camera");
+});
 voiceRoomCameraSwitchButton.addEventListener("click", () => {
   if (!voiceRooms) return;
   void voiceRooms.switchCamera().then((switched) => {

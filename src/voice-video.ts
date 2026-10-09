@@ -35,6 +35,11 @@ export type VoiceVideoOptions = {
   room: Room;
   /** Container remote video elements are attached to. */
   container: HTMLElement;
+  /**
+   * Container for the local preview. A preview you cannot see is the difference between sharing on
+   * purpose and sharing whatever happened to be on screen, so it exists whenever a source is running.
+   */
+  localPreview: HTMLElement;
   onChange: (view: VoiceVideoView) => void;
   /** Camera preference, so a device switch does not silently fall back to the system default. */
   getCameraDeviceId?: () => string;
@@ -44,6 +49,15 @@ const deniedErrorNames = ["NotAllowedError", "PermissionDeniedError", "SecurityE
 
 function isDenied(error: unknown) {
   return error instanceof Error && deniedErrorNames.includes(error.name);
+}
+
+/** A front-facing camera, when the platform tells us. Silence is treated as "not known". */
+function isUserFacing(track: { mediaStreamTrack?: { getSettings?: () => { facingMode?: string } } }) {
+  try {
+    return track.mediaStreamTrack?.getSettings?.().facingMode === "user";
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -74,6 +88,8 @@ export class VoiceVideoMixer {
   /** One in-flight request per source, so a double tap cannot publish twice. */
   private readonly starting = new Map<VoiceVideoSource, Promise<boolean>>();
   private readonly remote = new Map<string, RemoteVideo>();
+  private localPreview?: HTMLVideoElement;
+  private localPreviewTrack?: LocalVideoTrack;
   private stopped = false;
 
   constructor(options: VoiceVideoOptions) {
@@ -156,6 +172,7 @@ export class VoiceVideoMixer {
       await this.room.localParticipant.publishTrack(track);
       if (source === "camera") this.cameraTrack = track;
       else this.screenTrack = track;
+      this.showLocalPreview(track, source);
       this.issue = undefined;
       this.emit();
       return true;
@@ -202,7 +219,40 @@ export class VoiceVideoMixer {
       // Already gone with the room.
     }
     track.stop();
+    this.clearLocalPreview();
     this.emit();
+  }
+
+  /**
+   * Shows what is being sent, locally and muted, so a mistake is caught before it reaches the room.
+   * A front camera is mirrored because that is what the user expects to see; a shared screen never is,
+   * since mirroring a screen would make it unreadable.
+   */
+  private showLocalPreview(track: LocalVideoTrack, source: VoiceVideoSource) {
+    this.clearLocalPreview();
+    const element = document.createElement("video");
+    element.autoplay = true;
+    element.playsInline = true;
+    element.muted = true;
+    element.setAttribute("playsinline", "");
+    element.className = `voice-video-local-preview is-${source}`;
+    element.dataset.voiceVideo = "local";
+    element.dataset.voiceVideoSource = source;
+    // Only a camera that reports itself as user-facing is mirrored. When the platform does not say,
+    // it is left alone rather than guessing, because a mirrored desktop webcam looks like a fault.
+    element.dataset.mirrored = String(source === "camera" && isUserFacing(track));
+    track.attach(element);
+    this.localPreview = element;
+    this.localPreviewTrack = track;
+    this.options.localPreview.append(element);
+  }
+
+  private clearLocalPreview() {
+    if (!this.localPreview) return;
+    for (const element of this.localPreviewTrack?.detach() ?? []) element.remove();
+    this.localPreview.remove();
+    this.localPreview = undefined;
+    this.localPreviewTrack = undefined;
   }
 
   /** Move to the next camera, keeping the current one running if the switch fails. */
@@ -226,6 +276,7 @@ export class VoiceVideoMixer {
         // Already gone.
       }
       previous.stop();
+      this.showLocalPreview(replacement, "camera");
       this.emit();
       return true;
     } catch (error) {
@@ -273,6 +324,7 @@ export class VoiceVideoMixer {
     this.screenTrack?.stop();
     this.cameraTrack = undefined;
     this.screenTrack = undefined;
+    this.clearLocalPreview();
     for (const entry of this.remote.values()) entry.element.remove();
     this.remote.clear();
   }
