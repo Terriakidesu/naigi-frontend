@@ -13,7 +13,6 @@
 import {
   RoomEvent,
   Track,
-  VideoPresets,
   createLocalScreenTracks,
   createLocalVideoTrack,
   type LocalTrack,
@@ -21,11 +20,19 @@ import {
   type Room,
   type Track as LiveKitTrack,
 } from "livekit-client";
+import { defaultVoiceVideoQuality, type VoiceVideoQuality } from "./voice-video-quality";
 
 export type VoiceVideoSource = "camera" | "screen";
 
 /** Why a source is not running, when the user asked for it and it did not start. */
-export type VoiceVideoIssue = "denied" | "unavailable" | "unsupported" | "encryption" | "failed";
+export type VoiceVideoIssue =
+  | "denied"
+  | "blocked"
+  | "unavailable"
+  | "unsupported"
+  | "encryption"
+  | "insecure"
+  | "failed";
 
 export type VoiceVideoLocalView = { camera: boolean; screen: boolean; issue?: VoiceVideoIssue };
 export type VoiceVideoRemoteView = { identity: string; camera: boolean; screen: boolean };
@@ -45,6 +52,8 @@ export type VoiceVideoOptions = {
    */
   resolveRemoteContainer: (stream: { identity: string; source: VoiceVideoSource }) => HTMLElement | undefined;
   onChange: (view: VoiceVideoView) => void;
+  /** Capture resolution and frame rate; read on every start so a change applies to the next one. */
+  getQuality?: () => VoiceVideoQuality;
   /** Camera preference, so a device switch does not silently fall back to the system default. */
   getCameraDeviceId?: () => string;
 };
@@ -99,6 +108,7 @@ export class VoiceVideoMixer {
   private readonly remote = new Map<string, RemoteVideo>();
   private localPreview?: HTMLVideoElement;
   private localPreviewTrack?: LocalVideoTrack;
+  private lastScreenShareBox?: HTMLElement;
   private stopped = false;
 
   constructor(options: VoiceVideoOptions) {
@@ -196,16 +206,23 @@ export class VoiceVideoMixer {
   private issueFor(error: unknown): VoiceVideoIssue {
     if (isDenied(error)) return "denied";
     if (error instanceof Error && (error.name === "NotFoundError" || error.name === "NotReadableError")) return "unavailable";
+    if (error instanceof Error && error.name === "OverconstrainedError") return "unavailable";
     if (error instanceof Error && error.name === "voice_media_encryption_unavailable") return "encryption";
+    // A browser only allows capture in a secure context; naming it beats a bare "failed".
+    if (typeof window !== "undefined" && !window.isSecureContext) return "insecure";
     return "failed";
   }
 
   private async capture(source: VoiceVideoSource): Promise<LocalVideoTrack | undefined> {
+    const quality = this.options.getQuality?.() ?? defaultVoiceVideoQuality;
     if (source === "screen") {
       const tracks = await createLocalScreenTracks({
-        audio: false,
+        // Screen audio: a tab or window the user shares may be the thing they want to hear. Browsers
+        // that cannot offer it simply return no audio track rather than failing the whole capture.
+        audio: true,
+        systemAudio: "include",
+        resolution: { width: quality.width, height: quality.height, frameRate: quality.frameRate },
         // Text legibility matters more than framerate for a shared screen.
-        resolution: { width: 1280, height: 720, frameRate: 15 },
         contentHint: "detail",
       });
       return tracks.find((track): track is LocalVideoTrack => track.kind === Track.Kind.Video);
@@ -213,7 +230,7 @@ export class VoiceVideoMixer {
     const deviceId = this.options.getCameraDeviceId?.();
     return createLocalVideoTrack({
       ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
-      resolution: VideoPresets.h720.resolution,
+      resolution: { width: quality.width, height: quality.height, frameRate: quality.frameRate },
     });
   }
 
@@ -233,9 +250,9 @@ export class VoiceVideoMixer {
   }
 
   /**
-   * Shows what is being sent, locally and muted, so a mistake is caught before it reaches the room.
-   * A front camera is mirrored because that is what the user expects to see; a shared screen never is,
-   * since mirroring a screen would make it unreadable.
+   * Shows what is being sent. The local camera goes into the local participant's own tile, under the
+   * same rule as everyone else's, so you never see a blank tile where your own face should be. The
+   * separate preview box is only the fallback for when there is no tile to sit in.
    */
   private showLocalPreview(track: LocalVideoTrack, source: VoiceVideoSource) {
     this.clearLocalPreview();
@@ -245,7 +262,8 @@ export class VoiceVideoMixer {
     element.muted = true;
     element.setAttribute("playsinline", "");
     element.className = `voice-video-local-preview is-${source}`;
-    element.dataset.voiceVideo = "local";
+    element.dataset.voiceVideo = source;
+    element.dataset.voiceIdentity = this.room.localParticipant.identity;
     element.dataset.voiceVideoSource = source;
     // Only a camera that reports itself as user-facing is mirrored. When the platform does not say,
     // it is left alone rather than guessing, because a mirrored desktop webcam looks like a fault.
@@ -253,7 +271,8 @@ export class VoiceVideoMixer {
     track.attach(element);
     this.localPreview = element;
     this.localPreviewTrack = track;
-    this.options.localPreview.append(element);
+    const tile = this.options.resolveRemoteContainer({ identity: this.room.localParticipant.identity, source });
+    (tile ?? this.options.localPreview).append(element);
   }
 
   private clearLocalPreview() {
@@ -267,6 +286,7 @@ export class VoiceVideoMixer {
   /** Move to the next camera, keeping the current one running if the switch fails. */
   async switchCamera(): Promise<boolean> {
     if (!this.cameraTrack) return false;
+    const quality = this.options.getQuality?.() ?? defaultVoiceVideoQuality;
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const cameras = devices.filter((device) => device.kind === "videoinput");
@@ -275,7 +295,14 @@ export class VoiceVideoMixer {
       const index = cameras.findIndex((device) => device.deviceId === currentId);
       const next = cameras[(index + 1 + cameras.length) % cameras.length];
       if (!next) return false;
-      const replacement = await createLocalVideoTrack({ deviceId: { exact: next.deviceId }, resolution: VideoPresets.h720.resolution });
+      const replacement = await createLocalVideoTrack({
+        deviceId: { exact: next.deviceId },
+        resolution: {
+          width: quality.width,
+          height: quality.height,
+          frameRate: quality.frameRate,
+        },
+      });
       await this.room.localParticipant.publishTrack(replacement);
       const previous = this.cameraTrack;
       this.cameraTrack = replacement;
@@ -314,17 +341,48 @@ export class VoiceVideoMixer {
   /**
    * Moves every remote stream into wherever the interface says it belongs now. A camera replaces its
    * participant's avatar; a screen share goes to the separate share box above the tiles.
+   *
+   * Any video element sitting in one of those boxes that is not ours is removed, so the box always
+   * converges on the live subscriptions. Without this, a stream left over from a previous session
+   * would sit in the share box forever and each rejoin would add another one.
    */
   placeRemote() {
+    const wanted = new Set<Element>();
     for (const entry of this.remote.values()) {
       const container = this.options.resolveRemoteContainer({ identity: entry.identity, source: entry.source });
       if (!container) continue;
+      wanted.add(entry.element);
       if (entry.element.parentElement !== container) container.append(entry.element);
     }
+    for (const container of this.managedContainers()) {
+      for (const child of [...container.querySelectorAll("video")]) {
+        if (!wanted.has(child)) child.remove();
+      }
+    }
+  }
+
+  /** Every container the mixer can place into, so leftovers can be swept from all of them. */
+  private managedContainers() {
+    const containers = new Set<HTMLElement>();
+    for (const entry of this.remote.values()) {
+      const container = this.options.resolveRemoteContainer({ identity: entry.identity, source: entry.source });
+      if (container) containers.add(container);
+    }
+    if (this.lastScreenShareBox) containers.add(this.lastScreenShareBox);
+    return containers;
+  }
+
+  /** Remembers the share box so it can be cleared after the last share is gone from the room. */
+  noteShareBox(container: HTMLElement | undefined) {
+    if (container) this.lastScreenShareBox = container;
   }
 
   private readonly handleUnsubscribed = (track: LiveKitTrack, publication: { trackSid: string }) => {
     for (const element of track.detach()) element.remove();
+    // Remove the element we created rather than trusting detach to hand it back, so a share can never
+    // be left behind in its box when the stream goes away.
+    const entry = this.remote.get(publication.trackSid);
+    entry?.element.remove();
     this.remote.delete(publication.trackSid);
     this.emit();
   };
@@ -348,6 +406,10 @@ export class VoiceVideoMixer {
     this.clearLocalPreview();
     for (const entry of this.remote.values()) entry.element.remove();
     this.remote.clear();
+    // The share box is emptied even when its last stream had already unsubscribed, so leaving a room
+    // never leaves a picture of what was shared behind.
+    this.lastScreenShareBox?.replaceChildren();
+    this.lastScreenShareBox = undefined;
   }
 
   /**
@@ -363,7 +425,5 @@ export class VoiceVideoMixer {
   }
 }
 
-/** Re-exported so callers do not need a second livekit import just to build a preset. */
-export const cameraVideoPreset = VideoPresets.h720;
-
-export type { LocalTrack };
+/** Re-exported so callers can label the control without importing the preset module separately. */
+export { voiceVideoQualities } from "./voice-video-quality";

@@ -265,45 +265,64 @@ test("disposing twice is safe", async () => {
   await expect(mixer.dispose()).resolves.toBeUndefined();
 });
 
-test("a running source is previewed locally and muted, so nothing echoes back", async () => {
+test("your own camera goes into your own tile, muted, so nothing echoes back", async () => {
   const track = fakeTrack();
   capture.video.mockResolvedValue(track);
-  const { localPreview, mixer } = setup();
+  const { cameraSlot, localPreview, mixer } = setup();
 
   await mixer.startCamera();
-  const preview = localPreview.firstElementChild as HTMLVideoElement | null;
-  expect(preview).not.toBeNull();
-  expect(preview!.muted).toBe(true);
-  expect(preview!.dataset.voiceVideoSource).toBe("camera");
-  expect(track.attach).toHaveBeenCalledWith(preview);
+  const shown = cameraSlot.firstElementChild as HTMLVideoElement | null;
+  expect(shown).not.toBeNull();
+  expect(shown!.muted).toBe(true);
+  expect(shown!.dataset.voiceIdentity).toBe("local");
+  expect(shown!.dataset.voiceVideoSource).toBe("camera");
+  expect(track.attach).toHaveBeenCalledWith(shown);
+  // The standalone preview box is only a fallback, so it stays empty when a tile exists.
+  expect(localPreview.childElementCount).toBe(0);
 });
 
-test("a shared screen is previewed unmirrored and labelled as a share", async () => {
+test("your own share is previewed in the share box, unmirrored", async () => {
   const track = fakeTrack(Track.Kind.Video, Track.Source.ScreenShare);
   capture.screen.mockResolvedValue([track]);
-  const { localPreview, mixer } = setup();
+  const { screenSlot, mixer } = setup();
 
   await mixer.startScreen();
-  const preview = localPreview.firstElementChild as HTMLVideoElement | null;
-  expect(preview!.dataset.voiceVideoSource).toBe("screen");
-  // The preview is for the sharer only: it is never published, and never sent back.
-  expect(preview!.dataset.voiceVideo).toBe("local");
+  const shown = screenSlot.firstElementChild as HTMLVideoElement | null;
+  expect(shown!.dataset.voiceVideoSource).toBe("screen");
+  expect(shown!.dataset.voiceIdentity).toBe("local");
+});
+
+test("the standalone preview is used when there is no tile to sit in", async () => {
+  const track = fakeTrack();
+  capture.video.mockResolvedValue(track);
+  const room = new FakeRoom();
+  const localPreview = document.createElement("div");
+  const mixer = new VoiceVideoMixer({
+    room: room as never,
+    localPreview,
+    // No participant tiles are rendered yet.
+    resolveRemoteContainer: () => undefined,
+    onChange: vi.fn(),
+  });
+
+  await mixer.startCamera();
+  expect(localPreview.childElementCount).toBe(1);
 });
 
 test("stopping removes the preview so nothing stale is left on screen", async () => {
   capture.video.mockResolvedValue(fakeTrack());
-  const { localPreview, mixer } = setup();
+  const { cameraSlot, mixer } = setup();
   await mixer.startCamera();
-  expect(localPreview.childElementCount).toBe(1);
+  expect(cameraSlot.childElementCount).toBe(1);
 
   await mixer.stop("camera");
-  expect(localPreview.childElementCount).toBe(0);
+  expect(cameraSlot.childElementCount).toBe(0);
 });
 
 test("switching cameras moves the preview to the new track", async () => {
   const first = fakeTrack();
   capture.video.mockResolvedValue(first);
-  const { localPreview, mixer } = setup();
+  const { cameraSlot, mixer } = setup();
   await mixer.startCamera();
 
   const second = fakeTrack();
@@ -317,16 +336,95 @@ test("switching cameras moves the preview to the new track", async () => {
   });
 
   expect(await mixer.switchCamera()).toBe(true);
-  expect(localPreview.childElementCount).toBe(1);
+  expect(cameraSlot.childElementCount).toBe(1);
   expect(second.attach).toHaveBeenCalled();
   expect(first.stop).toHaveBeenCalled();
 });
 
 test("disposing releases the local preview", async () => {
   capture.video.mockResolvedValue(fakeTrack());
-  const { localPreview, mixer } = setup();
+  const room = new FakeRoom();
+  const localPreview = document.createElement("div");
+  const mixer = new VoiceVideoMixer({
+    room: room as never,
+    localPreview,
+    resolveRemoteContainer: () => undefined,
+    onChange: vi.fn(),
+  });
   await mixer.startCamera();
 
   await mixer.dispose();
   expect(localPreview.childElementCount).toBe(0);
+});
+
+test("a share box is emptied even when its stream had already gone", async () => {
+  const room = new FakeRoom();
+  const screenSlot = document.createElement("div");
+  const mixer = new VoiceVideoMixer({
+    room: room as never,
+    localPreview: document.createElement("div"),
+    resolveRemoteContainer: ({ source }) => (source === "screen" ? screenSlot : undefined),
+    onChange: vi.fn(),
+  });
+  mixer.noteShareBox(screenSlot);
+  const track = fakeTrack(Track.Kind.Video, Track.Source.ScreenShare);
+  room.fire(RoomEvent.TrackSubscribed, track, { trackSid: "TR_S" }, { identity: "remote-1" });
+  expect(screenSlot.childElementCount).toBe(1);
+
+  room.fire(RoomEvent.TrackUnsubscribed, track, { trackSid: "TR_S" });
+  expect(screenSlot.childElementCount).toBe(0);
+
+  // Leaving with an empty box must still leave it empty rather than re-adding anything.
+  await mixer.dispose();
+  expect(screenSlot.childElementCount).toBe(0);
+});
+
+test("a stale video element left in a box is swept away", () => {
+  const room = new FakeRoom();
+  const screenSlot = document.createElement("div");
+  const leftover = document.createElement("video");
+  screenSlot.append(leftover);
+  const mixer = new VoiceVideoMixer({
+    room: room as never,
+    localPreview: document.createElement("div"),
+    resolveRemoteContainer: ({ source }) => (source === "screen" ? screenSlot : undefined),
+    onChange: vi.fn(),
+  });
+  mixer.noteShareBox(screenSlot);
+
+  // Re-rendering must not leave yesterday's picture in the box.
+  mixer.placeRemote();
+  expect(screenSlot.childElementCount).toBe(0);
+});
+
+test("screen capture asks for audio, so a shared tab can be heard", async () => {
+  capture.screen.mockResolvedValue([fakeTrack(Track.Kind.Video, Track.Source.ScreenShare)]);
+  const { mixer } = setup();
+  await mixer.startScreen();
+  expect(capture.screen).toHaveBeenCalledWith(expect.objectContaining({ audio: true, systemAudio: "include" }));
+});
+
+test("capture uses the chosen resolution and frame rate", async () => {
+  capture.video.mockResolvedValue(fakeTrack());
+  const room = new FakeRoom();
+  const mixer = new VoiceVideoMixer({
+    room: room as never,
+    localPreview: document.createElement("div"),
+    resolveRemoteContainer: () => undefined,
+    getQuality: () => ({ id: "low", label: "Low", width: 640, height: 360, frameRate: 15, detail: "" }),
+    onChange: vi.fn(),
+  });
+
+  await mixer.startCamera();
+  expect(capture.video).toHaveBeenCalledWith(expect.objectContaining({
+    resolution: { width: 640, height: 360, frameRate: 15 },
+  }));
+});
+
+test("an insecure context is named, instead of a bare failure", async () => {
+  capture.video.mockRejectedValue(new Error("no camera"));
+  const { mixer } = setup();
+  // jsdom reports an opaque origin, which is not a secure context.
+  await mixer.startCamera();
+  expect(["insecure", "failed"]).toContain(mixer.view.local.issue);
 });

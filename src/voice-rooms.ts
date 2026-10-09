@@ -5,6 +5,7 @@ import { VoiceAudioProcessor, setProcessedMicrophone } from "./voice-audio-proce
 import { defaultVoiceAudioPreferences, voicePlaybackSettings, type VoiceAudioPreferences } from "./voice-audio-preferences";
 import { voiceRoomTicketRequester } from "./voice-room-device-switch";
 import { VoiceVideoMixer, screenCaptureSupported, type VoiceVideoSource, type VoiceVideoView } from "./voice-video";
+import { type VoiceVideoQuality } from "./voice-video-quality";
 
 export type VoiceRoomView = {
   status: "idle" | "joining" | "connecting" | "connected" | "reconnecting";
@@ -87,6 +88,8 @@ type VoiceRoomOptions = {
   localVideoPreview: HTMLElement;
   /** Where a remote stream belongs; re-queried after every interface render. */
   resolveVideoContainer?: (stream: { identity: string; source: "camera" | "screen" }) => HTMLElement | undefined;
+  /** Capture resolution and frame rate, read at each start. */
+  getVideoQuality?: () => VoiceVideoQuality;
   getCameraDeviceId?: () => string;
   getAudioInputDeviceId: () => string;
   getAudioOutputDeviceId: () => string;
@@ -594,14 +597,16 @@ export class VoiceRoomController {
       room,
       localPreview: this.options.localVideoPreview,
       resolveRemoteContainer: (stream) => this.options.resolveVideoContainer?.(stream),
+      getQuality: this.options.getVideoQuality,
+      getCameraDeviceId: this.options.getCameraDeviceId,
       onChange: (view) => {
         if (!this.isActive(active)) return;
         active.videoView = view;
         this.emitStateIfActive(active);
       },
-      getCameraDeviceId: this.options.getCameraDeviceId,
     });
     active.videoView = active.video.view;
+    active.video.noteShareBox(this.options.videoOutput);
     await this.announceParticipant(active);
     if (!this.isActive(active)) return;
     active.presenceTimer = window.setInterval(() => {

@@ -59,6 +59,14 @@ import { setVoiceDockButton } from "./voice-dock-button";
 import { createSpoilerPreview } from "./media-spoiler-preview";
 import { readSpoilerCache, writeSpoilerCache } from "./media-spoiler-cache";
 import { nsfwConfirmedChannelIds, needsNsfwConfirmation, rememberNsfwConfirmation } from "./content-flags";
+import {
+  defaultVoiceVideoQuality,
+  loadVoiceVideoQuality,
+  normalizeVoiceVideoQuality,
+  saveVoiceVideoQuality,
+  voiceVideoQualities,
+  type VoiceVideoQuality,
+} from "./voice-video-quality";
 import { askText, confirmNsfwChannel, confirmVoiceDeviceSwitch, showOneTimeToken } from "./ui-dialog";
 import { platform } from "#platform";
 
@@ -86,6 +94,7 @@ const voiceMemberCache = new Map<string, ConversationMember[]>();
 const voiceMemberLoads = new Map<string, Promise<ConversationMember[]>>();
 let voiceAudioInputDeviceId = "";
 let voiceAudioOutputDeviceId = "";
+let voiceVideoQuality: VoiceVideoQuality = defaultVoiceVideoQuality;
 let voiceAudioPreferences: VoiceAudioPreferences = normalizeVoiceAudioPreferences(undefined);
 let voiceAudioInputs: MediaDeviceInfo[] = [];
 let voiceAudioOutputs: MediaDeviceInfo[] = [];
@@ -328,6 +337,7 @@ const voiceRoomSharingStop = byId<HTMLButtonElement>("voice-room-sharing-stop");
 const voiceRoomCameraButton = byId<HTMLButtonElement>("voice-room-camera");
 const voiceRoomCameraSwitchButton = byId<HTMLButtonElement>("voice-room-camera-switch");
 const voiceRoomScreenShareButton = byId<HTMLButtonElement>("voice-room-screen-share");
+const voiceRoomVideoQuality = byId<HTMLSelectElement>("voice-room-video-quality");
 const voiceRoomControls = byId<HTMLElement>("voice-room-controls");
 const voiceRoomMute = byId<HTMLButtonElement>("voice-room-mute");
 const voiceRoomDeafen = byId<HTMLButtonElement>("voice-room-deafen");
@@ -1222,35 +1232,34 @@ function renderVoiceRoom(state: VoiceRoomView) {
  * platform cannot offer is shown disabled with the reason rather than left to fail on tap.
  */
 function renderVoiceRoomVideoControls(state: VoiceRoomView, connected: boolean) {
-  const video = state.video?.local;
-  const cameraOn = Boolean(video?.camera);
-  const screenOn = Boolean(video?.screen);
+  const screenRunning = Boolean(state.video?.local.screen);
+  const cameraRunning = Boolean(state.video?.local.camera);
   const screenAvailable = state.screenShareAvailable !== false;
-
-  setVoiceDockButton(voiceRoomCameraButton, connected, cameraOn ? "video" : "video-off",
-    cameraOn ? "Turn camera off" : "Turn camera on", cameraOn, !connected);
-  setVoiceDockButton(voiceRoomCameraSwitchButton, connected && cameraOn, "refresh-cw", "Switch camera", false, !connected);
+  setVoiceDockButton(voiceRoomCameraButton, connected, cameraRunning ? "video" : "video-off",
+    cameraRunning ? "Turn camera off" : "Turn camera on", cameraRunning, !connected);
+  setVoiceDockButton(voiceRoomCameraSwitchButton, connected && cameraRunning, "refresh-cw", "Switch camera", false, !connected);
   setVoiceDockButton(voiceRoomScreenShareButton, connected, "monitor",
-    screenOn ? "Stop sharing your screen" : "Share your screen", screenOn, !connected);
+    screenRunning ? "Stop sharing your screen" : "Share your screen", screenRunning, !connected);
 
   if (screenAvailable) {
-    voiceRoomScreenShareButton.title = screenOn ? "Stop sharing your screen" : "Share your screen";
+    voiceRoomScreenShareButton.title = screenRunning ? "Stop sharing your screen" : "Share your screen";
     voiceRoomScreenShareButton.removeAttribute("aria-disabled");
   } else {
     // The control stays visible and honest instead of pretending the platform can do it.
     voiceRoomScreenShareButton.title = "Screen sharing is not available on this device.";
     voiceRoomScreenShareButton.setAttribute("aria-disabled", "true");
-    voiceRoomScreenShareButton.disabled = !screenOn;
+    voiceRoomScreenShareButton.disabled = !screenRunning;
   }
+  // Remote video and your own tile carry the picture; the standalone preview is only a fallback.
   voiceRoomVideo.hidden = voiceRoomVideo.childElementCount === 0;
   voiceRoomLocalPreview.hidden = voiceRoomLocalPreview.childElementCount === 0;
 
-  // A persistent banner, not just a highlighted button: sharing is easy to forget you are doing.
-  const sharing = screenOn || cameraOn;
+  // Sharing is easy to forget, so it is stated in words with a way out, not only a lit button.
+  const sharing = screenRunning || cameraRunning;
   voiceRoomSharingBanner.hidden = !sharing;
   if (sharing) {
-    voiceRoomSharingTitle.textContent = screenOn ? "You are sharing your screen" : "Your camera is on";
-    setVoiceDockButton(voiceRoomSharingStop, true, "phone-off", screenOn ? "Stop sharing your screen" : "Turn camera off", false, false);
+    voiceRoomSharingTitle.textContent = screenRunning ? "You are sharing your screen" : "Your camera is on";
+    setVoiceDockButton(voiceRoomSharingStop, true, "phone-off", screenRunning ? "Stop sharing your screen" : "Turn camera off", false, false);
   }
 }
 
@@ -1350,6 +1359,7 @@ function initializeVoiceCalls(userId: string) {
     videoOutput: voiceRoomVideoOutput,
     localVideoPreview: voiceRoomLocalPreview,
     resolveVideoContainer: resolveVoiceVideoContainer,
+    getVideoQuality: () => voiceVideoQuality,
     getAudioInputDeviceId: () => voiceAudioInputDeviceId,
     getAudioOutputDeviceId: () => voiceAudioOutputDeviceId,
     getInitialMuted: () => preferredVoiceMuted,
@@ -3894,6 +3904,9 @@ async function startCrypto() {
   loadUnreadMarkers();
   loadMutedChannels();
   loadConfirmedNsfwChannels();
+  voiceVideoQuality = loadVoiceVideoQuality(currentUser.id);
+  renderVoiceVideoQualityOptions();
+  voiceRoomVideoQuality.value = voiceVideoQuality.id;
   loadNotificationPreference();
   void synchronizeFcmPush(api, currentUser.id, appPreferences);
   optimisticDecryptedMessages.clear();
@@ -8159,11 +8172,15 @@ async function toggleVoiceVideo(source: "camera" | "screen") {
 
 function videoIssueText(source: "camera" | "screen", issue?: string) {
   const subject = source === "camera" ? "camera" : "screen sharing";
-  if (issue === "denied") return `Your ${subject} permission was refused. Allow it in system settings to use it here.`;
-  if (issue === "unavailable") return `No ${subject} device is available right now.`;
+  if (issue === "denied") return `Your ${subject} permission was refused. Allow it for this site in the address bar, then try again.`;
+  if (issue === "blocked") return `Camera access is blocked. Turn it on for Naigi in system settings.`;
+  if (issue === "unavailable") return source === "camera"
+    ? "No camera is available, or the chosen resolution is not one it supports."
+    : `No ${subject} device is available right now.`;
   if (issue === "unsupported") return source === "screen"
     ? "Screen sharing is not available on this device yet."
     : "This device cannot share video.";
+  if (issue === "insecure") return "Camera and screen capture need a secure (HTTPS) connection.";
   if (issue === "encryption") return "The encrypted connection was not ready, so nothing was sent. Try again in a moment.";
   return `Could not start the ${subject}.`;
 }
@@ -8180,6 +8197,28 @@ voiceRoomCameraSwitchButton.addEventListener("click", () => {
   void voiceRooms.switchCamera().then((switched) => {
     if (!switched) setStatus("No other camera is available on this device.", true);
   });
+});
+
+/** The quality picker applies to the next start, because re-capturing mid-share is disruptive. */
+function renderVoiceVideoQualityOptions() {
+  if (voiceRoomVideoQuality.childElementCount > 0) return;
+  for (const quality of voiceVideoQualities) {
+    const option = document.createElement("option");
+    option.value = quality.id;
+    option.textContent = `${quality.label} · ${quality.detail}`;
+    voiceRoomVideoQuality.append(option);
+  }
+}
+
+voiceRoomVideoQuality.addEventListener("change", () => {
+  const next = normalizeVoiceVideoQuality(voiceRoomVideoQuality.value);
+  voiceVideoQuality = saveVoiceVideoQuality(currentUser?.id, next);
+  voiceRoomVideoQuality.value = voiceVideoQuality.id;
+  const running = voiceRooms?.currentState;
+  const live = Boolean(running?.video?.local.camera || running?.video?.local.screen);
+  setStatus(live
+    ? `Stream quality set to ${voiceVideoQuality.label}. It applies the next time you start your camera or share.`
+    : `Stream quality set to ${voiceVideoQuality.label} (${voiceVideoQuality.detail}).`);
 });
 const setVoicePushToTalk = (pressed: boolean) => {
   voiceRooms?.setPushToTalk(pressed);
