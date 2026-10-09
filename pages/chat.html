@@ -105,6 +105,7 @@
                 <section id="voice-room-panel" class="voice-room-panel" hidden aria-labelledby="voice-room-panel-title">
                   <h2 id="voice-room-panel-title" class="sr-only">Voice room</h2>
                   <div id="voice-room-audio-status" class="voice-room-audio-status" role="status" aria-live="polite" hidden></div>
+                  <div id="voice-room-video" class="voice-room-video" hidden aria-label="Voice room video"></div>
                   <div id="voice-room-participant-grid" class="voice-room-participant-grid" role="list" aria-label="Voice room participants"></div>
                   <div id="voice-room-controls" class="voice-room-controls" role="group" aria-label="Voice room controls" hidden>
                     <span class="voice-device-control voice-device-control-input">
@@ -122,6 +123,11 @@
                       </label>
                     </span>
                     <button id="voice-room-enable-audio" class="voice-dock-button voice-dock-enable-audio" type="button" title="Enable audio playback" aria-label="Enable audio playback" hidden></button>
+                    <span class="voice-device-control voice-device-control-video">
+                      <button id="voice-room-camera" class="voice-dock-button" type="button" title="Turn camera on" aria-label="Turn camera on" aria-pressed="false" hidden><i data-lucide="video"></i></button>
+                      <button id="voice-room-camera-switch" class="voice-dock-button voice-dock-secondary" type="button" title="Switch camera" aria-label="Switch camera" hidden><i data-lucide="refresh-cw"></i></button>
+                      <button id="voice-room-screen-share" class="voice-dock-button" type="button" title="Share your screen" aria-label="Share your screen" aria-pressed="false" hidden><i data-lucide="monitor"></i></button>
+                    </span>
                     <button class="voice-dock-button voice-hold-to-talk" data-voice-ptt type="button" aria-label="Hold to talk" title="Hold to talk" aria-pressed="false" hidden><i data-lucide="radio"></i></button>
                     <button id="voice-room-leave" class="voice-dock-button voice-dock-danger" type="button" title="Leave voice room" aria-label="Leave voice room" hidden></button>
                   </div>

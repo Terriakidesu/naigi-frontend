@@ -320,6 +320,10 @@ const voiceRoomJoinButton = byId<HTMLButtonElement>("voice-room-join-button");
 const voiceRoomJoinLabel = byId<HTMLElement>("voice-room-join-label");
 const voiceRoomAudioStatus = byId<HTMLElement>("voice-room-audio-status");
 const voiceRoomParticipantGrid = byId<HTMLElement>("voice-room-participant-grid");
+const voiceRoomVideo = byId<HTMLElement>("voice-room-video");
+const voiceRoomCameraButton = byId<HTMLButtonElement>("voice-room-camera");
+const voiceRoomCameraSwitchButton = byId<HTMLButtonElement>("voice-room-camera-switch");
+const voiceRoomScreenShareButton = byId<HTMLButtonElement>("voice-room-screen-share");
 const voiceRoomControls = byId<HTMLElement>("voice-room-controls");
 const voiceRoomMute = byId<HTMLButtonElement>("voice-room-mute");
 const voiceRoomDeafen = byId<HTMLButtonElement>("voice-room-deafen");
@@ -348,6 +352,7 @@ const voiceDockUserStatus = byId<HTMLElement>("voice-dock-user-status");
 const voiceCallTitle = byId<HTMLElement>("voice-call-title");
 const voiceCallStatus = byId<HTMLElement>("voice-call-status");
 const voiceCallAudioOutput = byId<HTMLElement>("voice-call-audio-output");
+const voiceRoomVideoOutput = byId<HTMLElement>("voice-room-video");
 const voiceCallAccept = byId<HTMLButtonElement>("voice-call-accept");
 const voiceCallDecline = byId<HTMLButtonElement>("voice-call-decline");
 const voiceCallMute = byId<HTMLButtonElement>("voice-call-mute");
@@ -842,6 +847,24 @@ function renderVoiceRoomParticipantGrid(state: VoiceRoomView) {
       ? participant.muted ? "Microphone muted" : participant.speaking ? "Your mic is active" : "You"
       : participant.muted ? "Microphone muted" : participant.speaking ? "Speaking" : "Connected";
     tile.append(avatar, label, status);
+    // Only show what is actually running. A tile never claims a camera or a share that is not there.
+    const media: string[] = [];
+    if (participant.camera) media.push("camera");
+    if (participant.screen) media.push("sharing their screen");
+    if (media.length > 0) {
+      const marks = document.createElement("span");
+      marks.className = "voice-room-tile-media";
+      for (const [kind, text] of [["camera", "Camera on"], ["screen", "Sharing their screen"]] as const) {
+        if (!media.includes(kind)) continue;
+        const mark = document.createElement("span");
+        mark.className = `voice-room-tile-media-mark is-${kind}`;
+        mark.title = text;
+        mark.setAttribute("aria-label", text);
+        mark.append(iconElement(kind === "camera" ? "video" : "monitor"));
+        marks.append(mark);
+      }
+      tile.append(marks);
+    }
     voiceRoomParticipantGrid.append(tile);
   }
 }
@@ -1169,10 +1192,39 @@ function renderVoiceRoom(state: VoiceRoomView) {
   setVoiceDockButton(voiceRoomMute, true, state.muted ? "mic-off" : "mic", state.muted ? "Unmute microphone" : "Mute microphone", state.muted, !connected);
   setVoiceDockButton(voiceRoomDeafen, true, state.deafened ? "volume-x" : "headphones", state.deafened ? "Undeafen audio" : "Deafen audio", state.deafened, !connected);
   setVoiceDockButton(voiceRoomLeave, true, "phone-off", state.status === "joining" || state.status === "connecting" ? "Cancel joining voice room" : "Leave voice room");
+  renderVoiceRoomVideoControls(state, connected);
   updateVoiceCallButton();
   renderIcons(voiceCallDock);
   renderIcons(voiceRoomControls);
   renderChannels();
+}
+
+/**
+ * Camera and screen share are opt-in, so their controls only matter once the room is live. A share the
+ * platform cannot offer is shown disabled with the reason rather than left to fail on tap.
+ */
+function renderVoiceRoomVideoControls(state: VoiceRoomView, connected: boolean) {
+  const video = state.video?.local;
+  const cameraOn = Boolean(video?.camera);
+  const screenOn = Boolean(video?.screen);
+  const screenAvailable = state.screenShareAvailable !== false;
+
+  setVoiceDockButton(voiceRoomCameraButton, connected, cameraOn ? "video" : "video-off",
+    cameraOn ? "Turn camera off" : "Turn camera on", cameraOn, !connected);
+  setVoiceDockButton(voiceRoomCameraSwitchButton, connected && cameraOn, "refresh-cw", "Switch camera", false, !connected);
+  setVoiceDockButton(voiceRoomScreenShareButton, connected, "monitor",
+    screenOn ? "Stop sharing your screen" : "Share your screen", screenOn, !connected);
+
+  if (screenAvailable) {
+    voiceRoomScreenShareButton.title = screenOn ? "Stop sharing your screen" : "Share your screen";
+    voiceRoomScreenShareButton.removeAttribute("aria-disabled");
+  } else {
+    // The control stays visible and honest instead of pretending the platform can do it.
+    voiceRoomScreenShareButton.title = "Screen sharing is not available on this device.";
+    voiceRoomScreenShareButton.setAttribute("aria-disabled", "true");
+    voiceRoomScreenShareButton.disabled = !screenOn;
+  }
+  voiceRoomVideo.hidden = voiceRoomVideo.childElementCount === 0;
 }
 
 async function voiceConversationMembers(conversationId: string) {
@@ -1268,6 +1320,7 @@ function initializeVoiceCalls(userId: string) {
     onState: renderVoiceRoom,
     onAccessRevoked: clearVoiceRoomResume,
     audioOutput: voiceCallAudioOutput,
+    videoOutput: voiceRoomVideoOutput,
     getAudioInputDeviceId: () => voiceAudioInputDeviceId,
     getAudioOutputDeviceId: () => voiceAudioOutputDeviceId,
     getInitialMuted: () => preferredVoiceMuted,
@@ -8042,6 +8095,47 @@ voiceRoomMute.addEventListener("click", () => voiceCallMute.click());
 voiceRoomDeafen.addEventListener("click", () => voiceCallDeafen.click());
 voiceRoomEnableAudio.addEventListener("click", () => voiceCallEnableAudio.click());
 voiceRoomLeave.addEventListener("click", () => voiceCallEnd.click());
+
+/**
+ * Camera and screen share are separate toggles, and neither is started for the user. A refusal is
+ * reported in the room's own status line so it is visible without hunting for a toast.
+ */
+async function toggleVoiceVideo(source: "camera" | "screen") {
+  if (!voiceRooms) return;
+  const state = voiceRooms.currentState;
+  const active = source === "camera" ? Boolean(state.video?.local.camera) : Boolean(state.video?.local.screen);
+  const started = active ? await voiceRooms.stopVideo(source) : await voiceRooms.startVideo(source);
+  if (active) {
+    if (started) setStatus(source === "camera" ? "Camera off." : "Stopped sharing your screen.");
+    return;
+  }
+  const issue = voiceRooms.currentState.video?.local.issue;
+  if (started) {
+    setStatus(source === "camera" ? "Camera on. Everyone in the room can see you." : "You are sharing your screen with the room.");
+    return;
+  }
+  setStatus(videoIssueText(source, issue), true);
+}
+
+function videoIssueText(source: "camera" | "screen", issue?: string) {
+  const subject = source === "camera" ? "camera" : "screen sharing";
+  if (issue === "denied") return `Your ${subject} permission was refused. Allow it in system settings to use it here.`;
+  if (issue === "unavailable") return `No ${subject} device is available right now.`;
+  if (issue === "unsupported") return source === "screen"
+    ? "Screen sharing is not available on this device yet."
+    : "This device cannot share video.";
+  if (issue === "encryption") return "The encrypted connection was not ready, so nothing was sent. Try again in a moment.";
+  return `Could not start the ${subject}.`;
+}
+
+voiceRoomCameraButton.addEventListener("click", () => void toggleVoiceVideo("camera"));
+voiceRoomScreenShareButton.addEventListener("click", () => void toggleVoiceVideo("screen"));
+voiceRoomCameraSwitchButton.addEventListener("click", () => {
+  if (!voiceRooms) return;
+  void voiceRooms.switchCamera().then((switched) => {
+    if (!switched) setStatus("No other camera is available on this device.", true);
+  });
+});
 const setVoicePushToTalk = (pressed: boolean) => {
   voiceRooms?.setPushToTalk(pressed);
   voiceCalls?.setPushToTalk(pressed);

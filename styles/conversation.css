@@ -57,6 +57,19 @@
 .voice-room-tile-name { max-width: 100%; overflow: hidden; color: var(--text); font-size: 0.8rem; text-overflow: ellipsis; white-space: nowrap; }
 .voice-room-tile-state { color: var(--text-faint); font-size: 0.62rem; }
 .voice-room-participant-tile.is-speaking .voice-room-tile-state { color: var(--green-text); }
+
+/*
+ * Remote video. A shared screen gets the whole width because cropping text is worse than letterboxing
+ * it; a camera is allowed to fill and crop, the way a camera tile normally does.
+ */
+.voice-room-video { display: grid; gap: 0.5rem; flex: 0 1 auto; min-width: 0; max-height: min(46vh, 380px); overflow: auto; }
+.voice-room-video[hidden] { display: none; }
+.voice-room-video > video { display: block; width: 100%; max-height: min(46vh, 380px); border: 1px solid var(--line-soft); border-radius: 12px; background: #05070a; object-fit: contain; }
+.voice-room-video > video[data-voice-video="camera"] { width: auto; max-width: 100%; max-height: min(30vh, 260px); margin-inline: auto; object-fit: cover; }
+.voice-room-tile-media { display: flex; gap: 0.28rem; }
+.voice-room-tile-media-mark { display: grid; place-items: center; padding: 0.16rem 0.3rem; border-radius: 999px; color: var(--accent-text); background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.voice-room-tile-media-mark.is-screen { color: var(--danger-text); background: color-mix(in srgb, var(--danger) 18%, transparent); }
+.voice-room-tile-media-mark svg { width: 11px; height: 11px; stroke-width: 2; }
 .voice-room-empty-state { display: grid; justify-items: center; gap: 0.75rem; color: var(--text-faint); font-size: 0.7rem; text-align: center; }
 .voice-room-empty-icon { display: grid; place-items: center; width: 72px; height: 72px; border: 1px solid var(--line-soft); border-radius: 22px; color: var(--accent-text); background: color-mix(in srgb, var(--bg-elevated) 78%, transparent); }
 .voice-room-empty-icon svg { width: 31px; height: 31px; }

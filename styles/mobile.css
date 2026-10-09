@@ -131,7 +131,20 @@
 .chat-layout .self-profile-button { min-height: 48px; }
 
 
-/* Touch devices have no hover, so hover-only affordances must not gate actions. */
+/*
+ * A phone shows one stream at a time. Video sits above the participant tiles at a size that leaves the
+ * controls and the list reachable, and camera/share take the same touch targets as the rest of the dock.
+ */
+.chat-layout .voice-room-video { max-height: 30vh; }
+.chat-layout .voice-room-video > video { max-height: 30vh; border-radius: 10px; }
+.chat-layout .voice-room-video > video[data-voice-video="camera"] { max-height: 22vh; }
+.chat-layout .voice-device-control-video .voice-dock-button { width: 44px; height: 44px; flex-basis: 44px; }
+.chat-layout .voice-room-tile-media-mark { padding: 0.24rem 0.4rem; }
+.chat-layout .voice-room-tile-media-mark svg { width: 13px; height: 13px; }
+
+/*
+ * Touch devices have no hover, so hover-only affordances must not gate actions.
+ */
 @media (hover: none) {
   .chat-layout .attachment-preview-list .attachment-item:hover,
   .chat-layout .message-actions:hover { opacity: 1; }

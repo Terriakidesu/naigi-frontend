@@ -208,6 +208,11 @@
 .voice-device-control .voice-device-picker { flex-basis: 20px; width: 20px; height: 36px; border-left: 1px solid color-mix(in srgb, var(--line-soft) 72%, transparent); border-radius: 0 9px 9px 0; }
 .voice-device-control .voice-device-picker-icons .voice-device-picker-chevron { width: 12px; height: 12px; }
 .voice-device-control[data-toggle-visible="true"] .voice-device-picker-primary-icon { display: none; }
+/* Camera and share sit together but are separate controls: a rounded group, not a split button. */
+.voice-device-control-video .voice-dock-button { border-radius: 9px; }
+.voice-device-control-video .voice-dock-button + .voice-dock-button { border-left: 1px solid color-mix(in srgb, var(--line-soft) 72%, transparent); border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.voice-device-control-video .voice-dock-button[aria-pressed="true"] { color: var(--accent-ink); background: var(--accent); }
+.voice-device-control-video .voice-dock-button[aria-disabled="true"] { opacity: 0.45; }
 .voice-call-dock[data-mode="room"] .voice-dock-summary { flex: 1 1 auto; gap: 0.5rem; }
 .voice-call-dock[data-mode="room"] .voice-dock-call-summary,
 .voice-call-dock[data-mode="room"] .voice-dock-status-icon { display: none; }

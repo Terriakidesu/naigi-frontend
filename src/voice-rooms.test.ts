@@ -12,11 +12,17 @@ vi.mock("livekit-client", async (importOriginal) => {
     ExternalE2EEKeyProvider: class { async setKey() {} },
     Room: class {
       state = "disconnected";
+      isE2EEEnabled = true;
       remoteParticipants = new Map();
-      localParticipant = { identity: "72d55ee8-4283-491d-bb8c-8b977ddac43f" };
+      localParticipant = {
+        identity: "72d55ee8-4283-491d-bb8c-8b977ddac43f",
+        publishTrack: vi.fn(),
+        unpublishTrack: vi.fn(),
+      };
       listeners = new Map<string, (...args: any[]) => void>();
       constructor() { mockRoom.value = this; }
       on(event: string, callback: (...args: any[]) => void) { this.listeners.set(event, callback); }
+      off(event: string) { this.listeners.delete(event); }
       async setE2EEEnabled() {}
       async connect() { this.state = "connected"; }
       async disconnect() { this.state = "disconnected"; }
@@ -53,6 +59,7 @@ function setup() {
     sendSignal: vi.fn().mockReturnValue(true),
     onState: vi.fn(),
     audioOutput: document.createElement("div"),
+    videoOutput: document.createElement("div"),
     getAudioInputDeviceId: () => "",
     getAudioOutputDeviceId: () => "",
   };

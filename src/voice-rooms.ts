@@ -4,6 +4,7 @@ import { assertVoiceSecureContext, waitForLocalVoiceEncryption } from "./voice-e
 import { VoiceAudioProcessor, setProcessedMicrophone } from "./voice-audio-processor";
 import { defaultVoiceAudioPreferences, voicePlaybackSettings, type VoiceAudioPreferences } from "./voice-audio-preferences";
 import { voiceRoomTicketRequester } from "./voice-room-device-switch";
+import { VoiceVideoMixer, screenCaptureSupported, type VoiceVideoSource, type VoiceVideoView } from "./voice-video";
 
 export type VoiceRoomView = {
   status: "idle" | "joining" | "connecting" | "connected" | "reconnecting";
@@ -18,9 +19,13 @@ export type VoiceRoomView = {
   remoteAudioCount?: number;
   audioPlaybackBlocked?: boolean;
   audioIssue?: "microphone" | "subscription" | "encryption" | "playback";
+  /** Camera and screen-share state, absent until the room reports it. */
+  video?: VoiceVideoView;
+  /** False when the platform has no screen-capture picker, so the control can explain itself. */
+  screenShareAvailable?: boolean;
 };
 
-export type VoiceRoomParticipantView = { identity: string; userId?: string; local: boolean; speaking?: boolean; muted?: boolean };
+export type VoiceRoomParticipantView = { identity: string; userId?: string; local: boolean; speaking?: boolean; muted?: boolean; camera?: boolean; screen?: boolean };
 
 type RoomTicket = { url: string; token: string; canStart: boolean };
 type RoomKey = { sessionId: string; mediaKey: string };
@@ -35,6 +40,9 @@ type ActiveRoom = {
   room?: Room;
   worker?: Worker;
   audioProcessor?: VoiceAudioProcessor;
+  video?: VoiceVideoMixer;
+  videoContainer?: HTMLElement;
+  videoView?: VoiceVideoView;
   muted: boolean;
   deafened: boolean;
   participantUserIds: Map<string, string>;
@@ -73,6 +81,9 @@ type VoiceRoomOptions = {
   onState: (state: VoiceRoomView) => void;
   onAccessRevoked?: () => void;
   audioOutput: HTMLElement;
+  /** Remote camera and screen-share video elements are attached here. */
+  videoOutput: HTMLElement;
+  getCameraDeviceId?: () => string;
   getAudioInputDeviceId: () => string;
   getAudioOutputDeviceId: () => string;
   getInitialMuted?: () => boolean;
@@ -85,6 +96,17 @@ function randomMediaKey() {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/**
+ * Runs a video control against the live room, if there is one. Returns false rather than throwing when
+ * the room has gone away, so a control tapped during teardown cannot surface an error.
+ */
+async function activeVideo(active: ActiveRoom | undefined, action: "startCamera" | "startScreen" | "stop", source?: VoiceVideoSource) {
+  const mixer = active?.video;
+  if (!mixer) return false;
+  if (action === "stop") return mixer.stop(source ?? "camera");
+  return mixer[action]();
 }
 
 export class VoiceRoomController {
@@ -125,6 +147,8 @@ export class VoiceRoomController {
       remoteAudioCount: active.remoteAudioTrackSids.size,
       audioPlaybackBlocked: active.audioPlaybackAllowed === false && active.remoteAudioTrackSids.size > 0,
       audioIssue: active.audioIssue,
+      video: active.videoView,
+      screenShareAvailable: screenCaptureSupported(),
       participants: joinedRoom
         ? [
             {
@@ -133,6 +157,8 @@ export class VoiceRoomController {
               local: true,
               speaking: active.speakingIdentities.has(joinedRoom.localParticipant.identity),
               muted: active.muted,
+              camera: active.videoView?.local.camera,
+              screen: active.videoView?.local.screen,
             },
             ...Array.from(joinedRoom.remoteParticipants.values(), (participant) => ({
               identity: participant.identity,
@@ -140,10 +166,26 @@ export class VoiceRoomController {
               local: false,
               speaking: active.speakingIdentities.has(participant.identity),
               muted: !participant.isMicrophoneEnabled,
+              camera: active.videoView?.remote.some((entry) => entry.identity === participant.identity && entry.camera),
+              screen: active.videoView?.remote.some((entry) => entry.identity === participant.identity && entry.screen),
             })),
           ]
         : [],
     };
+  }
+
+  /** Camera and screen share are opt-in and independent of the microphone. */
+  async startVideo(source: VoiceVideoSource) {
+    return activeVideo(this.active, source === "camera" ? "startCamera" : "startScreen");
+  }
+
+  async stopVideo(source: VoiceVideoSource) {
+    return activeVideo(this.active, source === "camera" ? "stop" : "stop", source);
+  }
+
+  async switchCamera() {
+    if (!this.active?.video) return false;
+    return this.active.video.switchCamera();
   }
 
   participantsForChannel(channelId: string): VoiceRoomParticipantView[] {
@@ -529,6 +571,19 @@ export class VoiceRoomController {
     void this.options.releaseToken(active.channelId, active.ticketInstanceId).catch(() => undefined);
     await waitForLocalVoiceEncryption(room);
     if (!this.isActive(active)) return;
+    // Video is set up only once encryption is confirmed, and never publishes until the user asks.
+    active.videoContainer = this.options.videoOutput;
+    active.video = new VoiceVideoMixer({
+      room,
+      container: this.options.videoOutput,
+      onChange: (view) => {
+        if (!this.isActive(active)) return;
+        active.videoView = view;
+        this.emitStateIfActive(active);
+      },
+      getCameraDeviceId: this.options.getCameraDeviceId,
+    });
+    active.videoView = active.video.view;
     await this.announceParticipant(active);
     if (!this.isActive(active)) return;
     active.presenceTimer = window.setInterval(() => {
@@ -640,6 +695,11 @@ export class VoiceRoomController {
     window.clearInterval(active.accessTimer);
     window.clearInterval(active.presenceTimer);
     this.options.audioOutput.replaceChildren();
+    // Release the camera and detach every remote video element before the room goes away.
+    await active.video?.dispose();
+    active.video = undefined;
+    active.videoView = undefined;
+    active.videoContainer?.replaceChildren();
     this.emitState();
     try {
       await active.room?.disconnect();
