@@ -69,6 +69,107 @@ beforeEach(() => {
 
 afterEach(() => vi.restoreAllMocks());
 
+test("screen audio is published together with video and stopped with it", async () => {
+  const video = fakeTrack(Track.Kind.Video, Track.Source.ScreenShare);
+  const audio = fakeTrack(Track.Kind.Audio, Track.Source.ScreenShareAudio);
+  capture.screen.mockResolvedValue([video, audio]);
+  const { room, mixer } = setup();
+  expect(await mixer.startScreen()).toBe(true);
+  expect(room.localParticipant.publishTrack).toHaveBeenCalledWith(audio);
+  expect(mixer.view.local.screenAudio).toBe(true);
+  await mixer.stop("screen");
+  expect(audio.stop).toHaveBeenCalled();
+  expect(room.localParticipant.unpublishTrack).toHaveBeenCalledWith(audio);
+});
+
+test("camera and screen previews coexist and stopping one preserves the other", async () => {
+  capture.video.mockResolvedValue(fakeTrack());
+  capture.screen.mockResolvedValue([fakeTrack(Track.Kind.Video, Track.Source.ScreenShare)]);
+  const { mixer, cameraSlot, screenSlot } = setup();
+  mixer.noteShareBox(screenSlot);
+  await mixer.startCamera();
+  await mixer.startScreen();
+  mixer.placeRemote();
+  expect(cameraSlot.querySelector("video")).not.toBeNull();
+  expect(screenSlot.querySelector("video")).not.toBeNull();
+  await mixer.stop("screen");
+  expect(cameraSlot.querySelector("video")).not.toBeNull();
+  expect(screenSlot.querySelector("video")).toBeNull();
+});
+
+test("stop cancels a pending camera permission result", async () => {
+  let resolve!: (track: ReturnType<typeof fakeTrack>) => void;
+  capture.video.mockReturnValue(new Promise((done) => { resolve = done; }));
+  const { room, mixer } = setup();
+  const pending = mixer.startCamera();
+  await mixer.stop("camera");
+  const track = fakeTrack();
+  resolve(track);
+  expect(await pending).toBe(false);
+  expect(track.stop).toHaveBeenCalled();
+  expect(room.localParticipant.publishTrack).not.toHaveBeenCalled();
+});
+
+test("leaving while publication is pending unpublishes and releases the late track", async () => {
+  const track = fakeTrack();
+  capture.video.mockResolvedValue(track);
+  const { room, mixer } = setup();
+  let resolve!: () => void;
+  room.localParticipant.publishTrack.mockReturnValue(new Promise<void>((done) => { resolve = done; }));
+  const pending = mixer.startCamera();
+  await vi.waitFor(() => expect(room.localParticipant.publishTrack).toHaveBeenCalled());
+  await mixer.dispose();
+  resolve();
+  expect(await pending).toBe(false);
+  expect(room.localParticipant.unpublishTrack).toHaveBeenCalledWith(track);
+  expect(track.stop).toHaveBeenCalled();
+});
+
+test("failed audio publication rolls back the entire screen capture", async () => {
+  const video = fakeTrack(Track.Kind.Video, Track.Source.ScreenShare);
+  const audio = fakeTrack(Track.Kind.Audio, Track.Source.ScreenShareAudio);
+  capture.screen.mockResolvedValue([video, audio]);
+  const { room, mixer } = setup();
+  room.localParticipant.publishTrack.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("denied"));
+  expect(await mixer.startScreen()).toBe(false);
+  expect(video.stop).toHaveBeenCalled();
+  expect(audio.stop).toHaveBeenCalled();
+  expect(mixer.view.local.screen).toBe(false);
+});
+
+test("browser stop-sharing ends both screen video and audio", async () => {
+  const ended = new EventTarget();
+  const video = { ...fakeTrack(Track.Kind.Video, Track.Source.ScreenShare), mediaStreamTrack: ended };
+  const audio = fakeTrack(Track.Kind.Audio, Track.Source.ScreenShareAudio);
+  capture.screen.mockResolvedValue([video, audio]);
+  const { mixer } = setup();
+  await mixer.startScreen();
+  ended.dispatchEvent(new Event("ended"));
+  await vi.waitFor(() => expect(audio.stop).toHaveBeenCalled());
+  expect(mixer.view.local.screen).toBe(false);
+});
+
+test("an already running camera is not captured twice", async () => {
+  capture.video.mockResolvedValue(fakeTrack());
+  const { mixer } = setup();
+  await mixer.startCamera();
+  await mixer.startCamera();
+  expect(capture.video).toHaveBeenCalledTimes(1);
+});
+
+test("local camera preview follows a rebuilt participant tile", async () => {
+  const room = new FakeRoom();
+  let slot = document.createElement("div");
+  const mixer = new VoiceVideoMixer({ room: room as never, localPreview: document.createElement("div"),
+    resolveRemoteContainer: () => slot, onChange: vi.fn() });
+  capture.video.mockResolvedValue(fakeTrack());
+  await mixer.startCamera();
+  const video = slot.firstElementChild;
+  slot = document.createElement("div");
+  mixer.placeRemote();
+  expect(slot.firstElementChild).toBe(video);
+});
+
 test("camera and screen start as off, so joining never turns anything on", () => {
   const { mixer } = setup();
   expect(mixer.view.local).toEqual({ camera: false, screen: false });

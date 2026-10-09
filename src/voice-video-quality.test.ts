@@ -6,6 +6,7 @@ import {
   normalizeVoiceVideoQuality,
   saveVoiceVideoQuality,
   voiceVideoQualities,
+  normalizeVideoPreferences, loadVideoPreferences, saveVideoPreferences, captureQuality,
 } from "./voice-video-quality";
 
 beforeEach(() => {
@@ -17,6 +18,19 @@ beforeEach(() => {
   });
 });
 afterEach(() => vi.unstubAllGlobals());
+
+test("camera and screen resolution and fps are independently remembered", () => {
+  const preferences = normalizeVideoPreferences({ camera: { height: 1080, frameRate: 60 }, screen: { height: 1440, frameRate: 15 }, screenAudio: false });
+  saveVideoPreferences("one", preferences);
+  expect(loadVideoPreferences("one")).toEqual(preferences);
+  expect(loadVideoPreferences("two").camera.height).toBe(720);
+  expect(captureQuality(preferences.camera)).toMatchObject({ width: 1920, height: 1080, frameRate: 60 });
+});
+
+test("unsupported capture settings are safely normalised", () => {
+  expect(normalizeVideoPreferences({ camera: { height: 99999, frameRate: -1 } }).camera).toEqual({ height: 720, frameRate: 30 });
+  expect(normalizeVideoPreferences(null).screen).toEqual({ height: 720, frameRate: 15 });
+});
 
 test("a balanced default is chosen when nothing is stored", () => {
   expect(loadVoiceVideoQuality("user-1")).toEqual(defaultVoiceVideoQuality);

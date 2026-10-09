@@ -60,12 +60,8 @@ import { createSpoilerPreview } from "./media-spoiler-preview";
 import { readSpoilerCache, writeSpoilerCache } from "./media-spoiler-cache";
 import { nsfwConfirmedChannelIds, needsNsfwConfirmation, rememberNsfwConfirmation } from "./content-flags";
 import {
-  defaultVoiceVideoQuality,
-  loadVoiceVideoQuality,
-  normalizeVoiceVideoQuality,
-  saveVoiceVideoQuality,
-  voiceVideoQualities,
-  type VoiceVideoQuality,
+  captureHeights, captureFrameRates, captureQuality,
+  loadVideoPreferences, saveVideoPreferences, normalizeVideoPreferences,
 } from "./voice-video-quality";
 import { askText, confirmNsfwChannel, confirmVoiceDeviceSwitch, showOneTimeToken } from "./ui-dialog";
 import { platform } from "#platform";
@@ -94,7 +90,8 @@ const voiceMemberCache = new Map<string, ConversationMember[]>();
 const voiceMemberLoads = new Map<string, Promise<ConversationMember[]>>();
 let voiceAudioInputDeviceId = "";
 let voiceAudioOutputDeviceId = "";
-let voiceVideoQuality: VoiceVideoQuality = defaultVoiceVideoQuality;
+let videoPreferences = normalizeVideoPreferences(null);
+let videoCameraDeviceId = "";
 let voiceAudioPreferences: VoiceAudioPreferences = normalizeVoiceAudioPreferences(undefined);
 let voiceAudioInputs: MediaDeviceInfo[] = [];
 let voiceAudioOutputs: MediaDeviceInfo[] = [];
@@ -338,6 +335,11 @@ const voiceRoomCameraButton = byId<HTMLButtonElement>("voice-room-camera");
 const voiceRoomCameraSwitchButton = byId<HTMLButtonElement>("voice-room-camera-switch");
 const voiceRoomScreenShareButton = byId<HTMLButtonElement>("voice-room-screen-share");
 const voiceRoomVideoQuality = byId<HTMLSelectElement>("voice-room-video-quality");
+const voiceRoomCameraFps = byId<HTMLSelectElement>("voice-room-camera-fps");
+const voiceRoomCameraDevice = byId<HTMLSelectElement>("voice-room-camera-device");
+const voiceRoomScreenResolution = byId<HTMLSelectElement>("voice-room-screen-resolution");
+const voiceRoomScreenFps = byId<HTMLSelectElement>("voice-room-screen-fps");
+const voiceRoomScreenAudio = byId<HTMLInputElement>("voice-room-screen-audio");
 const voiceRoomControls = byId<HTMLElement>("voice-room-controls");
 const voiceRoomMute = byId<HTMLButtonElement>("voice-room-mute");
 const voiceRoomDeafen = byId<HTMLButtonElement>("voice-room-deafen");
@@ -1258,7 +1260,9 @@ function renderVoiceRoomVideoControls(state: VoiceRoomView, connected: boolean) 
   const sharing = screenRunning || cameraRunning;
   voiceRoomSharingBanner.hidden = !sharing;
   if (sharing) {
-    voiceRoomSharingTitle.textContent = screenRunning ? "You are sharing your screen" : "Your camera is on";
+    voiceRoomSharingTitle.textContent = screenRunning
+      ? `You are sharing your screen · ${state.video?.local.screenAudio ? "shared audio on" : "no shared audio"}${cameraRunning ? " · camera on" : ""}`
+      : "Your camera is on";
     setVoiceDockButton(voiceRoomSharingStop, true, "phone-off", screenRunning ? "Stop sharing your screen" : "Turn camera off", false, false);
   }
 }
@@ -1359,7 +1363,9 @@ function initializeVoiceCalls(userId: string) {
     videoOutput: voiceRoomVideoOutput,
     localVideoPreview: voiceRoomLocalPreview,
     resolveVideoContainer: resolveVoiceVideoContainer,
-    getVideoQuality: () => voiceVideoQuality,
+    getVideoQuality: (source) => captureQuality(videoPreferences[source]),
+    getScreenAudio: () => videoPreferences.screenAudio,
+    getCameraDeviceId: () => videoCameraDeviceId,
     getAudioInputDeviceId: () => voiceAudioInputDeviceId,
     getAudioOutputDeviceId: () => voiceAudioOutputDeviceId,
     getInitialMuted: () => preferredVoiceMuted,
@@ -3904,9 +3910,8 @@ async function startCrypto() {
   loadUnreadMarkers();
   loadMutedChannels();
   loadConfirmedNsfwChannels();
-  voiceVideoQuality = loadVoiceVideoQuality(currentUser.id);
+  videoPreferences = loadVideoPreferences(currentUser.id);
   renderVoiceVideoQualityOptions();
-  voiceRoomVideoQuality.value = voiceVideoQuality.id;
   loadNotificationPreference();
   void synchronizeFcmPush(api, currentUser.id, appPreferences);
   optimisticDecryptedMessages.clear();
@@ -8201,24 +8206,54 @@ voiceRoomCameraSwitchButton.addEventListener("click", () => {
 
 /** The quality picker applies to the next start, because re-capturing mid-share is disruptive. */
 function renderVoiceVideoQualityOptions() {
-  if (voiceRoomVideoQuality.childElementCount > 0) return;
-  for (const quality of voiceVideoQualities) {
-    const option = document.createElement("option");
-    option.value = quality.id;
-    option.textContent = `${quality.label} · ${quality.detail}`;
-    voiceRoomVideoQuality.append(option);
+  for (const [select, choices, unit] of [
+    [voiceRoomVideoQuality, captureHeights, "p"], [voiceRoomScreenResolution, captureHeights, "p"],
+    [voiceRoomCameraFps, captureFrameRates, " fps"], [voiceRoomScreenFps, captureFrameRates, " fps"],
+  ] as const) {
+    if (select.childElementCount) continue;
+    for (const value of choices) select.add(new Option(`${value}${unit}`, String(value)));
   }
+  voiceRoomVideoQuality.value = String(videoPreferences.camera.height);
+  voiceRoomCameraFps.value = String(videoPreferences.camera.frameRate);
+  voiceRoomScreenResolution.value = String(videoPreferences.screen.height);
+  voiceRoomScreenFps.value = String(videoPreferences.screen.frameRate);
+  voiceRoomScreenAudio.checked = videoPreferences.screenAudio;
 }
 
-voiceRoomVideoQuality.addEventListener("change", () => {
-  const next = normalizeVoiceVideoQuality(voiceRoomVideoQuality.value);
-  voiceVideoQuality = saveVoiceVideoQuality(currentUser?.id, next);
-  voiceRoomVideoQuality.value = voiceVideoQuality.id;
-  const running = voiceRooms?.currentState;
-  const live = Boolean(running?.video?.local.camera || running?.video?.local.screen);
-  setStatus(live
-    ? `Stream quality set to ${voiceVideoQuality.label}. It applies the next time you start your camera or share.`
-    : `Stream quality set to ${voiceVideoQuality.label} (${voiceVideoQuality.detail}).`);
+for (const control of [voiceRoomVideoQuality, voiceRoomCameraFps, voiceRoomScreenResolution, voiceRoomScreenFps, voiceRoomScreenAudio]) {
+  control.addEventListener("change", () => {
+    videoPreferences = saveVideoPreferences(currentUser?.id, {
+      camera: { height: Number(voiceRoomVideoQuality.value), frameRate: Number(voiceRoomCameraFps.value) },
+      screen: { height: Number(voiceRoomScreenResolution.value), frameRate: Number(voiceRoomScreenFps.value) },
+      screenAudio: voiceRoomScreenAudio.checked,
+    });
+    setStatus("Video preferences saved. They apply the next time you start the source.");
+  });
+}
+voiceRoomCameraDevice.closest("details")?.addEventListener("toggle", () => {
+  if (!voiceRoomCameraDevice.closest("details")?.open) return;
+  // Enumeration does not request camera access. Labels appear after permission is granted.
+  void navigator.mediaDevices?.enumerateDevices().then((devices) => {
+    voiceRoomCameraDevice.replaceChildren(new Option("System default", ""));
+    devices.filter((device) => device.kind === "videoinput" && device.deviceId).forEach((device, index) => {
+      voiceRoomCameraDevice.add(new Option(device.label || `Camera ${index + 1}`, device.deviceId));
+    });
+    voiceRoomCameraDevice.value = videoCameraDeviceId;
+  }).catch(() => { setStatus("Camera devices could not be listed. You can still use the system default."); });
+});
+voiceRoomCameraDevice.addEventListener("change", () => {
+  videoCameraDeviceId = voiceRoomCameraDevice.value;
+  if (videoCameraDeviceId && voiceRooms?.currentState.video?.local.camera) {
+    void voiceRooms.switchCamera(videoCameraDeviceId).then((changed) => {
+      if (!changed) setStatus("Could not switch cameras. The current camera was kept running.", true);
+    });
+  }
+});
+byId<HTMLButtonElement>("voice-room-video-settings-close").addEventListener("click", () => {
+  const settings = voiceRoomCameraDevice.closest("details");
+  if (!settings) return;
+  settings.open = false;
+  settings.querySelector("summary")?.focus();
 });
 const setVoicePushToTalk = (pressed: boolean) => {
   voiceRooms?.setPushToTalk(pressed);

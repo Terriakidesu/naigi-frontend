@@ -2,9 +2,8 @@
  * Capture quality for camera and screen share.
  *
  * A fixed choice is wrong for everyone: a phone on mobile data and a desktop on fibre want different
- * things from the same control. Resolution and frame rate are therefore chosen together as one preset,
- * because they trade against each other and picking them separately produces settings that do not
- * exist in any real encoder.
+ * things from the same control. Capture constraints are preferences, not guarantees: the device and
+ * connection can deliver less than requested. Camera and screen preferences are independent.
  *
  * The choice is local to the account and device, like the audio device preferences: it describes this
  * machine's network, not the room.
@@ -54,4 +53,38 @@ export function saveVoiceVideoQuality(userId: string | undefined, quality: Voice
     // A quality that cannot be remembered costs one extra tap next time, and nothing else.
   }
   return normalized;
+}
+
+export type VideoCapturePreferences = { height: number; frameRate: number };
+export type VideoPreferences = {
+  camera: VideoCapturePreferences;
+  screen: VideoCapturePreferences;
+  screenAudio: boolean;
+};
+export const captureHeights = [360, 720, 1080, 1440] as const;
+export const captureFrameRates = [15, 24, 30, 60] as const;
+
+export function normalizeVideoPreferences(value: unknown): VideoPreferences {
+  const raw = value && typeof value === "object" ? value as Partial<VideoPreferences> : {};
+  const source = (input: VideoCapturePreferences | undefined, fps: number): VideoCapturePreferences => ({
+    height: captureHeights.includes(input?.height as never) ? input!.height : 720,
+    frameRate: captureFrameRates.includes(input?.frameRate as never) ? input!.frameRate : fps,
+  });
+  return { camera: source(raw.camera, 30), screen: source(raw.screen, 15), screenAudio: raw.screenAudio !== false };
+}
+
+export function loadVideoPreferences(userId?: string): VideoPreferences {
+  try { return normalizeVideoPreferences(JSON.parse(localStorage.getItem(`${storageKey(userId)}.sources`) ?? "null")); }
+  catch { return normalizeVideoPreferences(null); }
+}
+
+export function saveVideoPreferences(userId: string | undefined, value: VideoPreferences): VideoPreferences {
+  const normalized = normalizeVideoPreferences(value);
+  try { localStorage.setItem(`${storageKey(userId)}.sources`, JSON.stringify(normalized)); } catch { /* Session-only settings. */ }
+  return normalized;
+}
+
+export function captureQuality(preference: VideoCapturePreferences): VoiceVideoQuality {
+  return { id: "standard", label: `${preference.height}p`, detail: `${preference.frameRate} fps`,
+    height: preference.height, width: Math.round(preference.height * 16 / 9), frameRate: preference.frameRate };
 }

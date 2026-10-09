@@ -89,7 +89,8 @@ type VoiceRoomOptions = {
   /** Where a remote stream belongs; re-queried after every interface render. */
   resolveVideoContainer?: (stream: { identity: string; source: "camera" | "screen" }) => HTMLElement | undefined;
   /** Capture resolution and frame rate, read at each start. */
-  getVideoQuality?: () => VoiceVideoQuality;
+  getVideoQuality?: (source: VoiceVideoSource) => VoiceVideoQuality;
+  getScreenAudio?: () => boolean;
   getCameraDeviceId?: () => string;
   getAudioInputDeviceId: () => string;
   getAudioOutputDeviceId: () => string;
@@ -120,6 +121,7 @@ export class VoiceRoomController {
   private readonly options: VoiceRoomOptions;
   private readonly instanceId = crypto.randomUUID();
   private active?: ActiveRoom;
+  private readonly screenVolumes = new Map<string, number>();
   private pendingKeyRequest?: PendingKeyRequest;
   private readonly knownParticipants = new Map<string, Map<string, KnownParticipant>>();
   private readonly rosterRequests = new Map<string, number>();
@@ -190,9 +192,9 @@ export class VoiceRoomController {
     return activeVideo(this.active, source === "camera" ? "stop" : "stop", source);
   }
 
-  async switchCamera() {
+  async switchCamera(deviceId?: string) {
     if (!this.active?.video) return false;
-    return this.active.video.switchCamera();
+    return this.active.video.switchCamera(deviceId);
   }
 
   /**
@@ -419,7 +421,8 @@ export class VoiceRoomController {
       const userId = active.participantUserIds.get(audio.dataset.voiceIdentity ?? "");
       const settings = voicePlaybackSettings(preferences, active.deafened, userId);
       audio.muted = settings.muted;
-      audio.volume = settings.volume;
+      audio.volume = settings.volume * (audio.dataset.voiceSource === Track.Source.ScreenShareAudio
+        ? this.screenVolumes.get(audio.dataset.voiceIdentity ?? "") ?? 1 : 1);
     }
   }
 
@@ -561,6 +564,7 @@ export class VoiceRoomController {
       element.setAttribute("playsinline", "");
       element.dataset.voiceRoomAudio = "true";
       element.dataset.voiceIdentity = participant.identity;
+      element.dataset.voiceSource = track.source;
       this.options.audioOutput.append(element);
       track.attach(element);
       this.refreshAudioPreferences();
@@ -598,6 +602,12 @@ export class VoiceRoomController {
       localPreview: this.options.localVideoPreview,
       resolveRemoteContainer: (stream) => this.options.resolveVideoContainer?.(stream),
       getQuality: this.options.getVideoQuality,
+      getScreenAudio: this.options.getScreenAudio,
+      getScreenVolume: (identity) => this.screenVolumes.get(identity) ?? 1,
+      setScreenVolume: (identity, volume) => {
+        this.screenVolumes.set(identity, Math.max(0, Math.min(1, volume)));
+        this.refreshAudioPreferences();
+      },
       getCameraDeviceId: this.options.getCameraDeviceId,
       onChange: (view) => {
         if (!this.isActive(active)) return;
@@ -712,6 +722,7 @@ export class VoiceRoomController {
       }).catch(() => undefined);
     }
     this.active = undefined;
+    this.screenVolumes.clear();
     active.cleaningUp = true;
     void this.options.releaseToken(active.channelId, active.ticketInstanceId).catch(() => undefined);
     this.resolvePendingKey(undefined);

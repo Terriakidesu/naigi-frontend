@@ -21,6 +21,7 @@ import {
   type Track as LiveKitTrack,
 } from "livekit-client";
 import { defaultVoiceVideoQuality, type VoiceVideoQuality } from "./voice-video-quality";
+import { enableVideoViewer } from "./voice-video-viewer";
 
 export type VoiceVideoSource = "camera" | "screen";
 
@@ -34,7 +35,7 @@ export type VoiceVideoIssue =
   | "insecure"
   | "failed";
 
-export type VoiceVideoLocalView = { camera: boolean; screen: boolean; issue?: VoiceVideoIssue };
+export type VoiceVideoLocalView = { camera: boolean; screen: boolean; screenAudio?: boolean; issue?: VoiceVideoIssue };
 export type VoiceVideoRemoteView = { identity: string; camera: boolean; screen: boolean };
 export type VoiceVideoView = { local: VoiceVideoLocalView; remote: VoiceVideoRemoteView[] };
 
@@ -53,7 +54,10 @@ export type VoiceVideoOptions = {
   resolveRemoteContainer: (stream: { identity: string; source: VoiceVideoSource }) => HTMLElement | undefined;
   onChange: (view: VoiceVideoView) => void;
   /** Capture resolution and frame rate; read on every start so a change applies to the next one. */
-  getQuality?: () => VoiceVideoQuality;
+  getQuality?: (source: VoiceVideoSource) => VoiceVideoQuality;
+  getScreenAudio?: () => boolean;
+  getScreenVolume?: (identity: string) => number;
+  setScreenVolume?: (identity: string, volume: number) => void;
   /** Camera preference, so a device switch does not silently fall back to the system default. */
   getCameraDeviceId?: () => string;
 };
@@ -95,6 +99,7 @@ type RemoteVideo = {
   identity: string;
   source: VoiceVideoSource;
   track: LiveKitTrack;
+  releaseViewer: () => void;
 };
 
 export class VoiceVideoMixer {
@@ -102,12 +107,13 @@ export class VoiceVideoMixer {
   private readonly room: Room;
   private cameraTrack?: LocalVideoTrack;
   private screenTrack?: LocalVideoTrack;
+  private screenAudioTrack?: LocalTrack;
+  private readonly generations = { camera: 0, screen: 0 };
   private issue?: VoiceVideoIssue;
   /** One in-flight request per source, so a double tap cannot publish twice. */
   private readonly starting = new Map<VoiceVideoSource, Promise<boolean>>();
   private readonly remote = new Map<string, RemoteVideo>();
-  private localPreview?: HTMLVideoElement;
-  private localPreviewTrack?: LocalVideoTrack;
+  private readonly previews = new Map<VoiceVideoSource, { element: HTMLVideoElement; track: LocalVideoTrack; releaseViewer: () => void }>();
   private lastScreenShareBox?: HTMLElement;
   private stopped = false;
 
@@ -124,6 +130,7 @@ export class VoiceVideoMixer {
       local: {
         camera: Boolean(this.cameraTrack && !this.cameraTrack.isMuted),
         screen: Boolean(this.screenTrack && !this.screenTrack.isMuted),
+        ...(this.screenTrack ? { screenAudio: Boolean(this.screenAudioTrack) } : {}),
         ...(this.issue ? { issue: this.issue } : {}),
       },
       remote: this.remoteView(),
@@ -163,6 +170,8 @@ export class VoiceVideoMixer {
   }
 
   private start(source: VoiceVideoSource): Promise<boolean> {
+    if (this.stopped) return Promise.resolve(false);
+    if (source === "camera" ? this.cameraTrack : this.screenTrack) return Promise.resolve(true);
     const inFlight = this.starting.get(source);
     if (inFlight) return inFlight;
     const attempt = this.publish(source).finally(() => this.starting.delete(source));
@@ -171,6 +180,9 @@ export class VoiceVideoMixer {
   }
 
   private async publish(source: VoiceVideoSource): Promise<boolean> {
+    const generation = this.generations[source];
+    let tracks: LocalTrack[] = [];
+    const cancelled = () => this.stopped || generation !== this.generations[source];
     // The microphone is only published once encryption is up; video must not get ahead of it.
     if (!this.room.isE2EEEnabled) {
       this.issue = "encryption";
@@ -178,24 +190,43 @@ export class VoiceVideoMixer {
       return false;
     }
     try {
-      const track = await this.capture(source);
+      tracks = await this.capture(source);
+      const track = tracks.find((candidate): candidate is LocalVideoTrack => candidate.kind === Track.Kind.Video);
       if (!track) {
+        for (const captured of tracks) captured.stop();
         this.issue = "unsupported";
         this.emit();
         return false;
       }
-      if (this.stopped) {
-        track.stop();
-        return false;
+      if (cancelled()) throw new Error("capture_cancelled");
+      for (const captured of tracks) {
+        if (cancelled()) throw new Error("capture_cancelled");
+        if (!this.room.isE2EEEnabled) throw new Error("voice_media_encryption_unavailable");
+        await this.room.localParticipant.publishTrack(captured);
       }
-      await this.room.localParticipant.publishTrack(track);
+      if (cancelled()) throw new Error("capture_cancelled");
       if (source === "camera") this.cameraTrack = track;
-      else this.screenTrack = track;
+      else {
+        this.screenTrack = track;
+        this.screenAudioTrack = tracks.find((candidate) => candidate.kind === Track.Kind.Audio);
+      }
+      track.mediaStreamTrack.addEventListener?.("ended", () => {
+        if ((source === "camera" ? this.cameraTrack : this.screenTrack) === track) void this.stop(source);
+      }, { once: true });
       this.showLocalPreview(track, source);
       this.issue = undefined;
       this.emit();
       return true;
     } catch (error) {
+      if (tracks.includes(this.cameraTrack!)) this.cameraTrack = undefined;
+      if (tracks.includes(this.screenTrack!)) this.screenTrack = undefined;
+      if (tracks.includes(this.screenAudioTrack!)) this.screenAudioTrack = undefined;
+      if (tracks.includes(this.previews.get(source)?.track!)) this.clearLocalPreview(source);
+      for (const captured of tracks) {
+        captured.stop();
+        try { await this.room.localParticipant.unpublishTrack(captured); } catch { /* Already disconnected. */ }
+      }
+      if (cancelled()) return false;
       this.issue = this.issueFor(error);
       this.emit();
       console.warn("[voice-video] capture failed", error instanceof Error ? error.name : "unknown");
@@ -213,40 +244,41 @@ export class VoiceVideoMixer {
     return "failed";
   }
 
-  private async capture(source: VoiceVideoSource): Promise<LocalVideoTrack | undefined> {
-    const quality = this.options.getQuality?.() ?? defaultVoiceVideoQuality;
+  private async capture(source: VoiceVideoSource): Promise<LocalTrack[]> {
+    const quality = this.options.getQuality?.(source) ?? defaultVoiceVideoQuality;
     if (source === "screen") {
       const tracks = await createLocalScreenTracks({
         // Screen audio: a tab or window the user shares may be the thing they want to hear. Browsers
         // that cannot offer it simply return no audio track rather than failing the whole capture.
-        audio: true,
+        audio: this.options.getScreenAudio?.() ?? true,
         systemAudio: "include",
         resolution: { width: quality.width, height: quality.height, frameRate: quality.frameRate },
         // Text legibility matters more than framerate for a shared screen.
         contentHint: "detail",
       });
-      return tracks.find((track): track is LocalVideoTrack => track.kind === Track.Kind.Video);
+      return tracks;
     }
     const deviceId = this.options.getCameraDeviceId?.();
-    return createLocalVideoTrack({
+    return [await createLocalVideoTrack({
       ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
       resolution: { width: quality.width, height: quality.height, frameRate: quality.frameRate },
-    });
+    })];
   }
 
   async stop(source: VoiceVideoSource) {
+    this.generations[source]++;
     const track = source === "camera" ? this.cameraTrack : this.screenTrack;
-    if (!track) return;
+    const audio = source === "screen" ? this.screenAudioTrack : undefined;
+    if (source === "screen") this.screenAudioTrack = undefined;
     if (source === "camera") this.cameraTrack = undefined;
     else this.screenTrack = undefined;
-    try {
-      await this.room.localParticipant.unpublishTrack(track);
-    } catch {
-      // Already gone with the room.
-    }
-    track.stop();
-    this.clearLocalPreview();
+    this.clearLocalPreview(source);
     this.emit();
+    for (const captured of [track, audio]) {
+      if (!captured) continue;
+      captured.stop();
+      try { await this.room.localParticipant.unpublishTrack(captured); } catch { /* Already gone. */ }
+    }
   }
 
   /**
@@ -255,7 +287,7 @@ export class VoiceVideoMixer {
    * separate preview box is only the fallback for when there is no tile to sit in.
    */
   private showLocalPreview(track: LocalVideoTrack, source: VoiceVideoSource) {
-    this.clearLocalPreview();
+    this.clearLocalPreview(source);
     const element = document.createElement("video");
     element.autoplay = true;
     element.playsInline = true;
@@ -269,33 +301,36 @@ export class VoiceVideoMixer {
     // it is left alone rather than guessing, because a mirrored desktop webcam looks like a fault.
     element.dataset.mirrored = String(source === "camera" && isUserFacing(track));
     track.attach(element);
-    this.localPreview = element;
-    this.localPreviewTrack = track;
+    this.previews.set(source, { element, track, releaseViewer: enableVideoViewer(element, source === "screen" ? "your screen share" : "your camera") });
     const tile = this.options.resolveRemoteContainer({ identity: this.room.localParticipant.identity, source });
     (tile ?? this.options.localPreview).append(element);
   }
 
-  private clearLocalPreview() {
-    if (!this.localPreview) return;
-    for (const element of this.localPreviewTrack?.detach() ?? []) element.remove();
-    this.localPreview.remove();
-    this.localPreview = undefined;
-    this.localPreviewTrack = undefined;
+  private clearLocalPreview(source: VoiceVideoSource) {
+    const preview = this.previews.get(source);
+    if (!preview) return;
+    preview.releaseViewer();
+    preview.track.detach(preview.element);
+    preview.element.remove();
+    this.previews.delete(source);
   }
 
   /** Move to the next camera, keeping the current one running if the switch fails. */
-  async switchCamera(): Promise<boolean> {
+  async switchCamera(deviceId?: string): Promise<boolean> {
     if (!this.cameraTrack) return false;
-    const quality = this.options.getQuality?.() ?? defaultVoiceVideoQuality;
+    const previous = this.cameraTrack;
+    const generation = ++this.generations.camera;
+    let replacement: LocalVideoTrack | undefined;
+    const quality = this.options.getQuality?.("camera") ?? defaultVoiceVideoQuality;
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const cameras = devices.filter((device) => device.kind === "videoinput");
-      if (cameras.length < 2) return false;
+      if (!deviceId && cameras.length < 2) return false;
       const currentId = this.cameraTrack.mediaStreamTrack.getSettings().deviceId;
       const index = cameras.findIndex((device) => device.deviceId === currentId);
-      const next = cameras[(index + 1 + cameras.length) % cameras.length];
+      const next = deviceId ? cameras.find((device) => device.deviceId === deviceId) : cameras[(index + 1 + cameras.length) % cameras.length];
       if (!next) return false;
-      const replacement = await createLocalVideoTrack({
+      replacement = await createLocalVideoTrack({
         deviceId: { exact: next.deviceId },
         resolution: {
           width: quality.width,
@@ -303,9 +338,15 @@ export class VoiceVideoMixer {
           frameRate: quality.frameRate,
         },
       });
+      if (this.stopped || generation !== this.generations.camera) throw new Error("capture_cancelled");
+      if (!this.room.isE2EEEnabled) throw new Error("voice_media_encryption_unavailable");
       await this.room.localParticipant.publishTrack(replacement);
-      const previous = this.cameraTrack;
+      if (this.stopped || generation !== this.generations.camera) throw new Error("capture_cancelled");
       this.cameraTrack = replacement;
+      const switchedTrack = replacement;
+      replacement.mediaStreamTrack.addEventListener?.("ended", () => {
+        if (this.cameraTrack === switchedTrack) void this.stop("camera");
+      }, { once: true });
       try {
         await this.room.localParticipant.unpublishTrack(previous);
       } catch {
@@ -316,6 +357,11 @@ export class VoiceVideoMixer {
       this.emit();
       return true;
     } catch (error) {
+      if (replacement) {
+        replacement.stop();
+        try { await this.room.localParticipant.unpublishTrack(replacement); } catch { /* Disconnected. */ }
+      }
+      if (this.stopped || generation !== this.generations.camera) return false;
       this.issue = this.issueFor(error);
       this.emit();
       return false;
@@ -323,7 +369,11 @@ export class VoiceVideoMixer {
   }
 
   private readonly handleSubscribed = (track: LiveKitTrack, publication: { trackSid: string }, participant: { identity: string }) => {
+    if (this.stopped) return;
     if (track.kind !== Track.Kind.Video) return;
+    const previous = this.remote.get(publication.trackSid);
+    previous?.releaseViewer();
+    if (previous) { previous.track.detach(previous.element); previous.element.remove(); }
     const source: VoiceVideoSource = track.source === Track.Source.ScreenShare ? "screen" : "camera";
     const element = document.createElement("video");
     element.autoplay = true;
@@ -333,7 +383,12 @@ export class VoiceVideoMixer {
     element.dataset.voiceVideo = source;
     element.dataset.voiceIdentity = participant.identity;
     track.attach(element);
-    this.remote.set(publication.trackSid, { element, identity: participant.identity, source, track });
+    this.remote.set(publication.trackSid, { element, identity: participant.identity, source, track,
+      releaseViewer: enableVideoViewer(element, `${participant.identity}'s ${source === "screen" ? "screen share" : "camera"}`,
+        source === "screen" && this.options.setScreenVolume ? {
+          getVolume: () => this.options.getScreenVolume?.(participant.identity) ?? 1,
+          setVolume: (value) => this.options.setScreenVolume?.(participant.identity, value),
+        } : undefined) });
     this.placeRemote();
     this.emit();
   };
@@ -348,6 +403,11 @@ export class VoiceVideoMixer {
    */
   placeRemote() {
     const wanted = new Set<Element>();
+    for (const [source, preview] of this.previews) {
+      const container = this.options.resolveRemoteContainer({ identity: this.room.localParticipant.identity, source }) ?? this.options.localPreview;
+      wanted.add(preview.element);
+      if (preview.element.parentElement !== container) container.append(preview.element);
+    }
     for (const entry of this.remote.values()) {
       const container = this.options.resolveRemoteContainer({ identity: entry.identity, source: entry.source });
       if (!container) continue;
@@ -382,29 +442,40 @@ export class VoiceVideoMixer {
     // Remove the element we created rather than trusting detach to hand it back, so a share can never
     // be left behind in its box when the stream goes away.
     const entry = this.remote.get(publication.trackSid);
+    entry?.releaseViewer();
     entry?.element.remove();
     this.remote.delete(publication.trackSid);
     this.emit();
   };
 
-  private readonly handleLocalUnpublished = (publication: { source?: LiveKitTrack.Source }) => {
-    if (publication.source === Track.Source.Camera && this.cameraTrack?.isMuted === false) return;
-    this.emit();
+  private readonly handleLocalUnpublished = (publication: { track?: LocalTrack }) => {
+    if (!publication.track) return;
+    if (publication.track === this.cameraTrack) void this.stop("camera");
+    else if (publication.track === this.screenTrack) void this.stop("screen");
   };
 
   /** Detaches everything and releases the camera. Safe to call more than once. */
   async dispose() {
     if (this.stopped) return;
     this.stopped = true;
+    this.generations.camera++;
+    this.generations.screen++;
     this.room.off(RoomEvent.TrackSubscribed, this.handleSubscribed);
     this.room.off(RoomEvent.TrackUnsubscribed, this.handleUnsubscribed);
     this.room.off(RoomEvent.LocalTrackUnpublished, this.handleLocalUnpublished);
     this.cameraTrack?.stop();
     this.screenTrack?.stop();
+    this.screenAudioTrack?.stop();
+    this.screenAudioTrack = undefined;
     this.cameraTrack = undefined;
     this.screenTrack = undefined;
-    this.clearLocalPreview();
-    for (const entry of this.remote.values()) entry.element.remove();
+    this.clearLocalPreview("camera");
+    this.clearLocalPreview("screen");
+    for (const entry of this.remote.values()) {
+      entry.releaseViewer();
+      entry.track.detach(entry.element);
+      entry.element.remove();
+    }
     this.remote.clear();
     // The share box is emptied even when its last stream had already unsubscribed, so leaving a room
     // never leaves a picture of what was shared behind.

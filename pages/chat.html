@@ -135,10 +135,21 @@
                       <button id="voice-room-camera" class="voice-dock-button" type="button" title="Turn camera on" aria-label="Turn camera on" aria-pressed="false" hidden><i data-lucide="video"></i></button>
                       <button id="voice-room-camera-switch" class="voice-dock-button voice-dock-secondary" type="button" title="Switch camera" aria-label="Switch camera" hidden><i data-lucide="refresh-cw"></i></button>
                       <button id="voice-room-screen-share" class="voice-dock-button" type="button" title="Share your screen" aria-label="Share your screen" aria-pressed="false" hidden><i data-lucide="monitor"></i></button>
-                      <label class="voice-device-picker" title="Stream quality" aria-label="Stream quality">
-                        <span class="voice-device-picker-icons" aria-hidden="true"><i class="voice-device-picker-primary-icon" data-lucide="sliders-horizontal"></i><i class="voice-device-picker-chevron" data-lucide="chevron-down"></i></span>
-                        <select id="voice-room-video-quality" aria-label="Stream quality"></select>
-                      </label>
+                      <details class="voice-video-settings">
+                        <summary aria-label="Camera and screen settings">Video settings</summary>
+                        <div class="voice-video-settings-panel">
+                          <strong>Camera</strong>
+                          <label>Device <select id="voice-room-camera-device" aria-label="Camera device"><option value="">System default</option></select></label>
+                          <label>Resolution <select id="voice-room-video-quality" aria-label="Camera resolution"></select></label>
+                          <label>Frame rate <select id="voice-room-camera-fps" aria-label="Camera frame rate"></select></label>
+                          <strong>Screen share</strong>
+                          <label>Resolution <select id="voice-room-screen-resolution" aria-label="Screen resolution"></select></label>
+                          <label>Frame rate <select id="voice-room-screen-fps" aria-label="Screen frame rate"></select></label>
+                          <label><input id="voice-room-screen-audio" type="checkbox" checked> Include shared audio</label>
+                          <small>Preferences apply on next start. Actual quality depends on your device and connection. Audio must also be enabled in the browser’s share picker.</small>
+                          <button id="voice-room-video-settings-close" type="button">Done</button>
+                        </div>
+                      </details>
                     </span>
                     <button class="voice-dock-button voice-hold-to-talk" data-voice-ptt type="button" aria-label="Hold to talk" title="Hold to talk" aria-pressed="false" hidden><i data-lucide="radio"></i></button>
                     <button id="voice-room-leave" class="voice-dock-button voice-dock-danger" type="button" title="Leave voice room" aria-label="Leave voice room" hidden></button>
