@@ -273,6 +273,26 @@ test("remote video is attached on subscribe and removed on unsubscribe", () => {
   expect(onChange).toHaveBeenCalled();
 });
 
+test("joining after a share began attaches tracks that subscribed before the mixer existed", () => {
+  const room = new FakeRoom();
+  const video = fakeTrack(Track.Kind.Video, Track.Source.ScreenShare);
+  const camera = fakeTrack();
+  room.remoteParticipants.set("already-here", {
+    identity: "already-here",
+    trackPublications: new Map([
+      ["share", { trackSid: "share", track: video }],
+      ["camera", { trackSid: "camera", track: camera }],
+    ]),
+  } as never);
+  const screenSlot = document.createElement("div");
+  const cameraSlot = document.createElement("div");
+  const mixer = new VoiceVideoMixer({ room: room as never, localPreview: document.createElement("div"),
+    resolveRemoteContainer: ({ source }) => source === "screen" ? screenSlot : cameraSlot, onChange: vi.fn() });
+  expect(screenSlot.querySelector("video")).not.toBeNull();
+  expect(cameraSlot.querySelector("video")).not.toBeNull();
+  expect(mixer.view.remote).toEqual([{ identity: "already-here", camera: true, screen: true }]);
+});
+
 test("a camera goes into its participant's slot and a share into the separate share box", () => {
   const { room, cameraSlot, screenSlot, mixer } = setup();
   const camera = fakeTrack(Track.Kind.Video, Track.Source.Camera);

@@ -31,7 +31,12 @@
 .message-search input:focus { border: 0; box-shadow: none; }
 .message-search .icon-button { width: 22px; height: 22px; }
 .chat-content { position: relative; display: flex; grid-column: 1; grid-row: 2; flex-direction: column; min-width: 0; min-height: 0; }
-.voice-room-panel { display: flex; flex: 1 1 auto; flex-direction: column; gap: 1rem; min-width: 0; min-height: 0; overflow: auto; padding: clamp(1rem, 3vw, 2rem); background: radial-gradient(ellipse at 50% 38%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 52%); }
+.voice-room-panel { display: flex; flex: 1 1 auto; flex-direction: column; gap: 0.75rem; min-width: 0; min-height: 0; overflow: hidden; padding: clamp(0.65rem, 2vw, 1.5rem); background: radial-gradient(ellipse at 50% 38%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 52%); }
+.voice-room-stage { display: flex; flex: 1 1 0; flex-direction: column; gap: 0.75rem; min-width: 0; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 3px; }
+.voice-room-panel[data-has-share="true"] .voice-room-participant-grid { flex: 0 0 auto; min-height: 0; }
+.voice-room-panel[data-has-share="true"] .voice-room-participant-tile { min-height: 160px; padding: 0.6rem; }
+.voice-room-panel[data-has-share="true"] .voice-room-tile-avatar { width: 64px; height: 64px; }
+.voice-room-panel[data-has-share="true"] .voice-room-tile-video > video { max-height: 120px; }
 .voice-room-panel[hidden] { display: none; }
 .chat-main[data-voice-room-dock-in-main="true"] .voice-room-panel { padding-bottom: 6rem; }
 .voice-room-panel-heading { display: flex; align-items: center; gap: 0.85rem; min-width: 0; }
@@ -68,7 +73,7 @@
  */
 .voice-room-video { display: grid; gap: 0.5rem; flex: 0 0 auto; min-width: 0; }
 .voice-room-video[hidden] { display: none; }
-.voice-room-video > video { display: block; width: 100%; max-height: min(44vh, 360px); border: 1px solid var(--line-soft); border-radius: 12px; background: #05070a; object-fit: contain; }
+.voice-room-video > video { display: block; width: 100%; max-height: min(34dvh, 320px); border: 1px solid var(--line-soft); border-radius: 12px; background: #05070a; object-fit: contain; }
 .voice-room-tile-video { display: none; min-width: 0; }
 .voice-room-tile-video > video { display: block; width: 100%; aspect-ratio: 4 / 3; max-height: 100%; border-radius: 12px; background: #05070a; object-fit: cover; }
 /* The camera replaces the avatar rather than sitting under it, so only one is ever shown. */
@@ -97,7 +102,7 @@
 .voice-room-empty-state { display: grid; justify-items: center; gap: 0.75rem; color: var(--text-faint); font-size: 0.7rem; text-align: center; }
 .voice-room-empty-icon { display: grid; place-items: center; width: 72px; height: 72px; border: 1px solid var(--line-soft); border-radius: 22px; color: var(--accent-text); background: color-mix(in srgb, var(--bg-elevated) 78%, transparent); }
 .voice-room-empty-icon svg { width: 31px; height: 31px; }
-.voice-room-controls { position: sticky; z-index: 5; bottom: 0.65rem; display: flex; align-items: center; justify-content: center; align-self: center; flex: 0 0 auto; gap: 0.35rem; width: max-content; max-width: 100%; padding: 0.35rem; border: 1px solid color-mix(in srgb, var(--line-soft) 90%, transparent); border-radius: 14px; background: color-mix(in srgb, var(--bg-elevated) 94%, transparent); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.32); backdrop-filter: blur(16px); }
+.voice-room-controls { position: relative; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; align-self: center; flex: 0 0 auto; gap: 0.35rem; width: fit-content; max-width: 100%; padding: 0.35rem; border: 1px solid color-mix(in srgb, var(--line-soft) 90%, transparent); border-radius: 14px; background: color-mix(in srgb, var(--bg-elevated) 94%, transparent); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.32); backdrop-filter: blur(16px); }
 .voice-room-controls[hidden] { display: none; }
 .voice-room-controls .voice-device-control { min-height: 44px; }
 .voice-room-controls .voice-device-control .voice-dock-button { flex-basis: 44px; width: 44px; height: 44px; }
@@ -500,7 +505,9 @@
 .room-message-reference svg { flex: 0 0 auto; width: 0.95em; height: 0.95em; }
 .room-message-reference:hover { background: color-mix(in srgb, var(--accent) 23%, transparent); }
 .voice-video-settings { position: relative; }
-.voice-video-settings summary { cursor: pointer; padding: 0.6rem; min-height: 44px; }
+.voice-video-settings summary { display: flex; align-items: center; justify-content: center; gap: 0.4rem; cursor: pointer; padding: 0.6rem; min-height: 44px; list-style: none; }
+.voice-video-settings summary::-webkit-details-marker { display: none; }
+.voice-video-settings summary > svg { width: 20px; height: 20px; }
 .voice-video-settings-panel {
   position: absolute; bottom: calc(100% + 0.5rem); right: 0; z-index: 30;
   width: min(320px, 85vw); padding: 1rem; border-radius: 12px;
@@ -523,6 +530,12 @@
 .voice-video-viewer:fullscreen { width: 100%; max-width: none; max-height: none; border-radius: 0; }
 [data-voice-video]:focus-visible { outline: 2px solid var(--accent, #57b881); outline-offset: -3px; }
 @media (max-width: 600px) {
+  .voice-video-settings-label { display: none; }
+  .voice-video-settings summary { width: 44px; padding: 0; }
+  .voice-room-controls { width: 100%; }
+  .voice-room-video > video { max-height: 26dvh; }
+  .voice-room-participant-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .voice-room-participant-tile { min-height: 160px; }
   .voice-video-settings-panel { position: fixed; bottom: 1rem; left: 1rem; right: 1rem; width: auto; }
 }
 .custom-dropdown { position: relative; display: inline-flex; min-width: 115px; max-width: 65%; }

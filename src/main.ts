@@ -1256,6 +1256,7 @@ function renderVoiceRoomVideoControls(state: VoiceRoomView, connected: boolean) 
   }
   // Remote video and your own tile carry the picture; the standalone preview is only a fallback.
   voiceRoomVideo.hidden = voiceRoomVideo.childElementCount === 0;
+  voiceRoomPanel.dataset.hasShare = String(voiceRoomVideo.childElementCount > 0);
   voiceRoomLocalPreview.hidden = voiceRoomLocalPreview.childElementCount === 0;
 
   // Sharing is easy to forget, so it is stated in words with a way out, not only a lit button.

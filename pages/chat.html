@@ -104,6 +104,7 @@
                <div id="moderation-notices" class="chat-moderation-notices" role="region" aria-label="Moderation notices" hidden></div>
                 <section id="voice-room-panel" class="voice-room-panel" hidden aria-labelledby="voice-room-panel-title">
                   <h2 id="voice-room-panel-title" class="sr-only">Voice room</h2>
+                  <div class="voice-room-stage">
                   <div id="voice-room-audio-status" class="voice-room-audio-status" role="status" aria-live="polite" hidden></div>
                   <div id="voice-room-sharing-banner" class="voice-room-sharing-banner" role="status" hidden>
                     <span class="voice-room-sharing-copy">
@@ -114,7 +115,8 @@
                   </div>
                   <div id="voice-room-video" class="voice-room-video" hidden role="group" aria-label="Shared screens"></div>
                   <div id="voice-room-local-preview" class="voice-room-local-preview" hidden aria-label="Your camera preview"></div>
-                  <div id="voice-room-participant-grid" class="voice-room-participant-grid" role="list" aria-label="Voice room participants"></div>
+                   <div id="voice-room-participant-grid" class="voice-room-participant-grid" role="list" aria-label="Voice room participants"></div>
+                  </div>
                   <div id="voice-room-controls" class="voice-room-controls" role="group" aria-label="Voice room controls" hidden>
                     <span class="voice-device-control voice-device-control-input">
                       <button id="voice-room-mute" class="voice-dock-button" type="button" title="Mute microphone" aria-label="Mute microphone" aria-pressed="false" hidden></button>
@@ -136,7 +138,7 @@
                       <button id="voice-room-camera-switch" class="voice-dock-button voice-dock-secondary" type="button" title="Switch camera" aria-label="Switch camera" hidden><i data-lucide="refresh-cw"></i></button>
                       <button id="voice-room-screen-share" class="voice-dock-button" type="button" title="Share your screen" aria-label="Share your screen" aria-pressed="false" hidden><i data-lucide="monitor"></i></button>
                       <details class="voice-video-settings">
-                        <summary aria-label="Camera and screen settings">Video settings</summary>
+                        <summary aria-label="Camera and screen settings" title="Camera and screen settings"><i data-lucide="sliders-horizontal" aria-hidden="true"></i><span class="voice-video-settings-label">Video settings</span></summary>
                         <div class="voice-video-settings-panel">
                           <strong>Camera</strong>
                           <label>Device <select id="voice-room-camera-device" aria-label="Camera device"><option value="">System default</option></select></label>

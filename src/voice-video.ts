@@ -123,6 +123,13 @@ export class VoiceVideoMixer {
     this.room.on(RoomEvent.TrackSubscribed, this.handleSubscribed);
     this.room.on(RoomEvent.TrackUnsubscribed, this.handleUnsubscribed);
     this.room.on(RoomEvent.LocalTrackUnpublished, this.handleLocalUnpublished);
+    // connect() can deliver initial subscriptions before the controller creates this mixer.
+    // Seed those tracks as well as listening for future subscriptions (late join/reconnect).
+    for (const participant of this.room.remoteParticipants.values()) {
+      for (const publication of participant.trackPublications?.values() ?? []) {
+        if (publication.track) this.handleSubscribed(publication.track, publication, participant);
+      }
+    }
   }
 
   get view(): VoiceVideoView {
